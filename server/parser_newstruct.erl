@@ -134,7 +134,7 @@ starts_with_any(MethodName, List) ->
     lists:any(starts_with_gen(MethodName), List).
 
 starts_with_gen(MethodName) ->
-    fun (X) -> starts_with(MethodName, X) end.
+    fun (X) -> starts_with(X, MethodName) end.
 
 starts_with([], _) -> true;
 starts_with([H|Rest1], [H|Rest2]) -> starts_with(Rest1, Rest2);
