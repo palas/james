@@ -168,9 +168,9 @@ only_common(List, Drai) -> remove_empties(lists:map(fun (X) -> only_common_aux(X
 only_common_aux([], _, _, _) -> [];
 only_common_aux([(#path{node_ids = NodeIds,
 		        ori_node = OriNode} = Path)|Rest], Set, Dict, Drai) ->
-    DeltaSet = sets:union(sets:from_list(lists:concat(NodeIds)),
-			  dia_utils:expand_nodes_down(sets:from_list([dia_utils:get_nod_id(OriNode)]),
-						      Drai)),
+    DeltaSet = sets:union(sets:from_list(lists:concat(enumerate_sublists(NodeIds))),
+			  neg_tag_set(dia_utils:expand_nodes_down(
+					sets:from_list([dia_utils:get_nod_id(OriNode)]), Drai))),
     Inter = sets:intersection(Set, DeltaSet),
     case sets:size(Inter) of
 	0 ->
@@ -185,3 +185,13 @@ only_common_aux([(#path{node_ids = NodeIds,
 		[dict:fetch(El, Dict), Path]
 	    end
     end.
+
+enumerate_sublists(ListOfLists) ->
+    enumerate_sublists(length(ListOfLists), ListOfLists).
+enumerate_sublists(_N, []) -> [];
+enumerate_sublists(N, [List|Rest]) ->
+    [lists:map(fun (X) -> {N, X} end, List)|enumerate_sublists(N - 1, Rest)].
+
+neg_tag_set(Set) ->
+    sets:fold(fun (X, NS) -> sets:add_element({-1, X}, NS) end,
+	      sets:new(), Set).
