@@ -42,7 +42,7 @@
 -include("records.hrl").
 
 -export([get_path_depth/1, advance_paths/2, join_path_pair/3, path_length/1,
-	 group_paths/1, initialise_path/2]).
+	 group_paths/1, initialise_path/3]).
 
 get_path_depth(Path) -> Path#path.depth.
 
@@ -53,9 +53,18 @@ get_path_depth(Path) -> Path#path.depth.
 advance_paths(List, Island) ->
     lists:map(fun (X) -> advance_path(X, Island) end, List).
 advance_path(#path{node_ids = [List|Rest],
-		   depth = N} = Path, Island) ->
-    TempNewNodeTuples = lists:concat([[{dia_utils:get_tran_prop(Tran), dia_utils:expand_tran_upwards(Tran, Island)}
-				       || Tran <- dia_utils:sort_trans(dia_utils:expand_node_id_to_trans_up(NodeId, Island))]
+		   depth = N,
+		   direction = Dir} = Path, Island) ->
+    TempNewNodeTuples = lists:concat([[{dia_utils:get_tran_prop(Tran),
+					case Dir of
+					    upwards -> dia_utils:expand_tran_upwards(Tran, Island);
+					    downwards -> dia_utils:expand_tran_downwards(Tran, Island)
+					end}
+				       || Tran <- dia_utils:sort_trans(
+						    case Dir of
+							upwards -> dia_utils:expand_node_id_to_trans_up(NodeId, Island);
+							downwards -> dia_utils:expand_node_id_to_trans_down(NodeId, Island)
+						    end)]
 				      || NodeId <- List]),
     NewNodeTuples = lists:usort(TempNewNodeTuples),
     Path#path{cur_list_nodes = NewNodeTuples,
@@ -93,14 +102,13 @@ group_paths(PathList) ->
     utils:group_by(fun compare_paths/2, NewNewPathList).
 
 has_not_path_loop(#path{node_ids = List}) ->
-	CList = lists:concat(List),
-    length(lists:usort(CList)) =:= length(CList).
+    length(lists:usort(List)) =:= length(List).
 
 not_reached_top(#path{cur_list_nodes = []}) -> false;
 not_reached_top(_) -> true.
 
-compare_paths(#path{cur_list_nodes = CurList1},
-	      #path{cur_list_nodes = CurList2}) ->
+compare_paths(#path{cur_list_nodes = CurList1, direction = Dir},
+	      #path{cur_list_nodes = CurList2, direction = Dir}) ->
     %% case length(CurList1) > 4 of
     %% 	true -> io:format("===~n~p~n~p~n", [lists:sort([{P1, get_node_prop(N1)}|| {P1, N1} <- CurList1]),
     %% 					    lists:sort([{P2, get_node_prop(N2)}|| {P2, N2} <- CurList2])]),
@@ -109,17 +117,20 @@ compare_paths(#path{cur_list_nodes = CurList1},
     %% 	_ -> ok
     %% end,
     lists:sort([{P1, dia_utils:get_node_prop(N1)}|| {P1, N1} <- CurList1]) =:=	
-	lists:sort([{P2, dia_utils:get_node_prop(N2)}|| {P2, N2} <- CurList2]).
+	lists:sort([{P2, dia_utils:get_node_prop(N2)}|| {P2, N2} <- CurList2]);
+compare_paths(_, _) -> false.
+
 
 % Returns the length of a path as an Integer
 path_length(#path{depth = Depth}) -> Depth.
 
 % Creates the basic sturcture for Paths
-initialise_path(Node, _Islands) ->
+initialise_path(Node, _Islands, Direction) ->
     #path{cur_list_nodes = [{id, Node}],
 	  node_ids = [[dia_utils:get_nod_id(Node)]],
 	  depth = 1,
-	  ori_node = Node}.
+	  ori_node = Node,
+	  direction = Direction}.
 
 
 

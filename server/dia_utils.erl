@@ -44,7 +44,8 @@
 -export([expand_nodes_once/2, get_arc_from/1, get_nod_id/1, create_drai/2,
 	 generate_diamonds_in_drai/1, get_normal_nodes/1, rebuild_idxs/1,
 	 remove_duplicated_arcs/1, remove_orphan_nodes/1, remove_up_from/2,
-	 expand_node_id_to_trans_up/2, expand_tran_upwards/2, get_nod_ids/1,
+	 expand_node_id_to_trans_up/2, expand_node_id_to_trans_down/2,
+	 expand_tran_upwards/2, expand_tran_downwards/2, get_nod_ids/1,
 	 get_node_prop/1, get_tran_prop/1, join_node_pairs/3, sort_trans/1,
 	 collapse_integers/1, highlight_loops/1, remove_elliptic_nodes/1,
 	 expand_nodes_down/2, get_node_by_id/2, set_node/2, set_arc/2,
@@ -381,6 +382,12 @@ expand_tran_upwards(Tran, #drai{dnodes = DNodes}) ->
     From = get_arc_from(Tran),
     dict:fetch(From, DNodes).
 
+% Takes an arc record and finds the node records that
+% are upwards (where the arcs start)
+expand_tran_downwards(Tran, #drai{dnodes = DNodes}) ->
+    From = get_arc_to(Tran),
+    dict:fetch(From, DNodes).
+
 % Takes a list of arc records and sorts it using its label
 sort_trans(TranList) ->
     utils:usort_using(fun get_tran_prop/1, TranList).
@@ -388,7 +395,15 @@ sort_trans(TranList) ->
 
 % Takes a NodeId and extracts all the upward arcs as records
 expand_node_id_to_trans_up(NodeId, Drai) ->
-    sets:to_list(get_arcs_up(sets:from_list([NodeId]), Drai)).
+    NodeSet = sets:from_list([NodeId]),
+    sets:to_list(
+      get_arcs_up(NodeSet, Drai)).
+
+% Takes a NodeId and extracts all the downward arcs as records
+expand_node_id_to_trans_down(NodeId, Drai) ->
+    NodeSet = sets:from_list([NodeId]),
+    sets:to_list(
+      get_arcs_down(NodeSet, Drai)).
 
 remove_elliptic_nodes(#drai{dnodes = DNodes} = Drai) ->
     remove_orphan_arcs(Drai#drai{
@@ -584,4 +599,3 @@ get_base_cluster_nodes(NodeId, #diagram_node{http_request = {Method, URL} = HR} 
     NewNode = Node#diagram_node{cluster = {cluster, ClusterId, parser_utils:print_escaped({Method, URL})}},
     {dict:store(HR, ClusterId, ClusterDict), sets:add_element(NewNode, Set), dict:store(NodeId, NewNode, DNodes)};
 get_base_cluster_nodes(_, _, Acc) -> Acc.
-

@@ -46,6 +46,7 @@
 write_diagram(Nodes, Arcs) ->
     ["digraph Example { \n",
      "ordering = \"out\" ;\n",
+     "ranksep = 2;\n",
      "ratio = \"auto\" ;\n",
      "label = \"Java Interactions\" ;\n",
      write_clustered_nodes(Nodes),

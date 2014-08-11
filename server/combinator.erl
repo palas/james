@@ -97,8 +97,9 @@ get_best_path_pair(N,Island,OnlyCommon) ->
 	{Path1, Path2, S} ->
 	    case {path_utils:path_length(Path1), path_utils:path_length(Path2), S} of
 		{L, L, _} when L >= N ->
-		    io:format("PathLengths: ~p ~p~n", [path_utils:path_length(Path1),
-		    				       OnlyCommon]),
+		    io:format("PathLengths: ~p ~p ~p~n", [path_utils:path_length(Path1),
+							  Path1#path.direction,
+							  OnlyCommon]),
 		    {Path1, Path2};
 		_ -> none
 	    end
@@ -150,8 +151,9 @@ best_paths_from_groups(ListOfLists,Island,Level,OnlyCommon) ->
 
 
 initialise_paths(NodeList, Islands) ->
-    lists:map(fun (X) -> path_utils:initialise_path(X, Islands) end,
-	      NodeList).
+    lists:concat(lists:map(fun (X) -> [path_utils:initialise_path(X, Islands, downwards),
+				       path_utils:initialise_path(X, Islands, upwards)] end,
+			   NodeList)).
 
 remove_empties([]) -> [];
 remove_empties([[]|Rest]) -> remove_empties(Rest);
@@ -168,9 +170,9 @@ only_common(List, Drai) -> remove_empties(lists:map(fun (X) -> only_common_aux(X
 only_common_aux([], _, _, _) -> [];
 only_common_aux([(#path{node_ids = NodeIds,
 		        ori_node = OriNode} = Path)|Rest], Set, Dict, Drai) ->
-    DeltaSet = sets:union(sets:from_list(lists:concat(enumerate_sublists(NodeIds))),
-			  neg_tag_set(dia_utils:expand_nodes_down(
-					sets:from_list([dia_utils:get_nod_id(OriNode)]), Drai))),
+    DeltaSet = sets:union(sets:from_list(lists:concat(NodeIds)),
+			  dia_utils:expand_nodes_down(sets:from_list([dia_utils:get_nod_id(OriNode)]),
+						      Drai)),
     Inter = sets:intersection(Set, DeltaSet),
     case sets:size(Inter) of
 	0 ->
@@ -185,13 +187,3 @@ only_common_aux([(#path{node_ids = NodeIds,
 		[dict:fetch(El, Dict), Path]
 	    end
     end.
-
-enumerate_sublists(ListOfLists) ->
-    enumerate_sublists(length(ListOfLists), ListOfLists).
-enumerate_sublists(_N, []) -> [];
-enumerate_sublists(N, [List|Rest]) ->
-    [lists:map(fun (X) -> {N, X} end, List)|enumerate_sublists(N - 1, Rest)].
-
-neg_tag_set(Set) ->
-    sets:fold(fun (X, NS) -> sets:add_element({-1, X}, NS) end,
-	      sets:new(), Set).
