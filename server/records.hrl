@@ -46,11 +46,11 @@
 -record(diagram_arc, {id, id_start, id_end, properties = [], content, tags}).
 -record(temp_info, {dependency_index, entity_index, last_entity_id, last_http = none, from_setUp = false}).
 -record(drai, {dnodes, darcs, arcsf, arcst}).
--record(path, {cur_list_nodes, node_ids, arc_ids, depth, ori_node}).
--record(config, {remove_bubbles = false, highlight_loops = false,
+-record(path, {cur_list_nodes, node_ids, arc_ids, depth, ori_node, direction}).
+-record(config, {remove_bubbles = false, highlight_loops = true,
 		 collapse_integers = true, collapse_strings = true,
 		 single_file = false,
 		 num_of_islands = 20, % inf = no limit
-		 big_k_value = 4, small_k_value = 1, remove_orphan_nodes = true,
+		 big_k_value = 4, small_k_value = 100, remove_orphan_nodes = true,
 		 discard_calls_beginning_with = ["info"], % assert is another useful option
 		 remove_nodes_up_from = ["createTest", "getLogger", "run"]}).
