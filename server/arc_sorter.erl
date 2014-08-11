@@ -115,8 +115,8 @@ compare(List1, List2) ->
 
 summarise(List) -> summarise(List, empty).
 summarise([], Sth) -> Sth;
-summarise([Sth|Rest], empty) -> summarise(Rest, Sth);
 summarise([undefined|Rest], Sth) -> summarise(Rest, Sth);
+summarise([Sth|Rest], empty) -> summarise(Rest, Sth);
 summarise([bigger|_], smaller) -> contradictory;
 summarise([smaller|_], bigger) -> contradictory;
 summarise([Dec|Rest], Dec) -> summarise(Rest, Dec).
