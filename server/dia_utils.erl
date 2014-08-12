@@ -140,8 +140,7 @@ get_tran_prop(#diagram_arc{properties = Prop,
 			   content = Content}) ->
     {Prop, Content}.
 
-get_node_prop(#diagram_node{label = Label, cluster = no}) -> Label;
-get_node_prop(#diagram_node{label = Label, cluster = Cluster}) -> {Label, Cluster}.
+get_node_prop(#diagram_node{label = Label, cluster = Cluster, class = Class}) -> {Label, Cluster, Class}.
 
 generate_diamonds_in_drai(#drai{dnodes = DNodes,
 		                darcs = DArcs} = Drai) ->
@@ -421,9 +420,9 @@ collapse_integers(Drai) ->
 
 collapse_integer_aux({DiaId, ListOfNodes}, Drai) ->
     {UnsortedInts, _} = lists:partition(fun isIntegerNode/1, ListOfNodes),
-    Ints = utils:sort_using(fun (X) -> element(2, get_node_prop(X)) end, UnsortedInts),
+    Ints = utils:sort_using(fun (X) -> element(2, element(1,get_node_prop(X))) end, UnsortedInts),
     NewInts = special_zip(
-		utils:sort_using(fun (X) -> element(2, X) end,
+		utils:sort_using(fun (X) -> element(2, element(1,X)) end,
 				 integer_list:collapse_integer_list(lists:map(fun get_node_prop/1, Ints))),
 		Ints),
     RenamedNewInts = lists:map(fun add_tag_to_node_id/1, NewInts),
@@ -446,7 +445,7 @@ get_tags([]) -> [];
 get_tags([#diagram_node{tags = Tags}|Rest]) -> Tags ++ get_tags(Rest).
 
 isIntegerNode(Node) ->
-    case get_node_prop(Node) of
+    case element(1, get_node_prop(Node)) of
 	{integer, _} -> true;
 	_ -> false
     end.
@@ -566,7 +565,41 @@ set_arc_thick(#diagram_arc{properties = List} = Arc) ->
 generate_subgraphs(#drai{dnodes = DNodes} = Drai) ->
     {_ClusterD, BaseClusterNodesSet, DNodes2} = dict:fold(fun get_base_cluster_nodes/3, {dict:new(), sets:new(), DNodes}, DNodes),
     {NewDrai,_,_} = sets:fold(fun depth_search_inc_in_clus/2, {Drai#drai{dnodes = DNodes2}, [], no}, BaseClusterNodesSet),
-    NewDrai.
+	sets:fold(fun find_class/2, NewDrai, BaseClusterNodesSet).
+
+find_class(#diagram_node{id = NodeId, cluster = Cluster} = Node, #drai{dnodes = DNodes} = Drai) ->
+	ChildNodes = dia_utils:expand_nodes_down(sets:from_list([NodeId]), Drai),
+	Names = get_method_names([], Cluster, ChildNodes, Drai),
+	Class = compute_class(Names),
+	Drai#drai{dnodes = dict:store(NodeId, Node#diagram_node{class = Class}, DNodes)}.
+
+get_method_names(MNList, Cluster, NodeSet, Drai) ->
+	case sets:size(NodeSet) of
+		0 -> MNList;
+		_ -> {NodeIdSet, ListOfMethodNames, _} = lists:foldl(fun get_method_names_aux/2, {sets:new(), MNList, Cluster},
+														   get_nodes_by_ids(sets:to_list(NodeSet), Drai)),
+			 get_method_names(ListOfMethodNames, Cluster, expand_nodes_down(NodeIdSet, Drai), Drai)
+	end.
+
+get_method_names_aux(#diagram_node{id = Id, cluster = Cluster, http_request = no,
+								   content = #callback{method_name = MethodName}},
+					 {NodeIdSet, MethodNameList, Cluster}) ->
+	{sets:add_element(Id, NodeIdSet), [MethodName|MethodNameList], Cluster};
+get_method_names_aux(_, {_,_,_} = Acc) -> Acc.
+
+compute_class(List) ->
+	case lists:any(fun contains_error_substring/1, List) of
+    	true -> error;
+		false -> normal
+	end.
+
+contains_error_substring(String) ->
+	contains_error_substring_aux(string:to_lower(String)).
+contains_error_substring_aux([]) -> false;
+contains_error_substring_aux("errors" ++ _) -> false;
+contains_error_substring_aux("error" ++ _) -> true;
+contains_error_substring_aux("fail" ++ _) -> true;
+contains_error_substring_aux([_|Rest]) -> contains_error_substring_aux(Rest).
 
 depth_search_inc_in_clus(#diagram_node{cluster = ClusterN}, {Drai, Trace, Cluster})
   when (ClusterN =/= no) andalso (Cluster =/= no) ->
@@ -574,17 +607,17 @@ depth_search_inc_in_clus(#diagram_node{cluster = ClusterN}, {Drai, Trace, Cluste
 depth_search_inc_in_clus(#diagram_node{id = NodeId, cluster = ClusterN} = Node,
 			 {Drai, Trace, ClusterAc}) ->
     NewTrace = [Node|Trace],
-    Cluster = case ClusterAc of
-		  no -> ClusterN;
-		  Else -> Else
-	      end,
+	Cluster = case ClusterAc of
+				  no -> ClusterN;
+				  Else -> Else
+			  end,
     NodeDownIdSet = dia_utils:expand_nodes_down(sets:from_list([NodeId]), Drai),
     NodeDownSet = sets:from_list(get_nodes_by_ids(sets:to_list(NodeDownIdSet), Drai)),
-    case sets:size(NodeDownIdSet) of
-	0 -> {add_to_cluster(NewTrace, Cluster, Drai), Trace, ClusterAc};
-	_ -> {NewDrai, _, _} = sets:fold(fun depth_search_inc_in_clus/2, {Drai, NewTrace, Cluster}, NodeDownSet),
-	     {NewDrai, Trace, ClusterAc}
-    end.
+	case sets:size(NodeDownIdSet) of
+		0 -> {add_to_cluster(NewTrace, Cluster, Drai), Trace, ClusterAc};
+		_ -> {NewDrai, _, _} = sets:fold(fun depth_search_inc_in_clus/2, {Drai, NewTrace, Cluster}, NodeDownSet),
+			 {NewDrai, Trace, ClusterAc}
+	end.
 
 add_to_cluster([], _, Drai) -> Drai;
 add_to_cluster([#diagram_node{id = NodeId} = Node|Rest], Cluster, #drai{dnodes = DNodes} = Drai) ->

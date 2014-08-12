@@ -42,7 +42,7 @@
 -record(free_event, {tag}).
 -record(value, {type, value, obj_info = none}).
 -record(obj_info, {first_time, identifier}).
--record(diagram_node, {id, label, properties = [], is_label_term = false, content, tags = [], http_request = no, cluster = no}).
+-record(diagram_node, {id, label, properties = [], is_label_term = false, content, tags = [], http_request = no, cluster = no, class = empty}).
 -record(diagram_arc, {id, id_start, id_end, properties = [], content, tags}).
 -record(temp_info, {dependency_index, entity_index, last_entity_id, last_http = none, from_setUp = false}).
 -record(drai, {dnodes, darcs, arcsf, arcst}).
