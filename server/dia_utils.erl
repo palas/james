@@ -567,10 +567,10 @@ generate_subgraphs(#drai{dnodes = DNodes} = Drai) ->
     {NewDrai,_,_} = sets:fold(fun depth_search_inc_in_clus/2, {Drai#drai{dnodes = DNodes2}, [], no}, BaseClusterNodesSet),
 	sets:fold(fun find_class/2, NewDrai, BaseClusterNodesSet).
 
-find_class(#diagram_node{id = NodeId, cluster = Cluster} = Node, #drai{dnodes = DNodes} = Drai) ->
+find_class(#diagram_node{id = NodeId, cluster = Cluster, tags = Tags} = Node, #drai{dnodes = DNodes} = Drai) ->
 	ChildNodes = dia_utils:expand_nodes_down(sets:from_list([NodeId]), Drai),
 	Names = get_method_names([], Cluster, ChildNodes, Drai),
-	Class = compute_class(Names),
+	Class = compute_class(Names, Tags),
 	Drai#drai{dnodes = dict:store(NodeId, Node#diagram_node{class = Class}, DNodes)}.
 
 get_method_names(MNList, Cluster, NodeSet, Drai) ->
@@ -587,10 +587,11 @@ get_method_names_aux(#diagram_node{id = Id, cluster = Cluster, http_request = no
 	{sets:add_element(Id, NodeIdSet), [MethodName|MethodNameList], Cluster};
 get_method_names_aux(_, {_,_,_} = Acc) -> Acc.
 
-compute_class(List) ->
-	case lists:any(fun contains_error_substring/1, List) of
-    	true -> error;
-		false -> normal
+compute_class(List, Tags) ->
+	case {lists:any(fun contains_error_substring/1, List), lists:member(is_after, Tags)} of
+		{_, true} -> tearDown;
+    	{true, _} -> error;
+		{false, _} -> normal
 	end.
 
 contains_error_substring(String) ->
