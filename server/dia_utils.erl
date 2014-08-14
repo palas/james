@@ -423,7 +423,8 @@ collapse_integer_aux({DiaId, ListOfNodes}, Drai) ->
     Ints = utils:sort_using(fun (X) -> element(2, element(1,get_node_prop(X))) end, UnsortedInts),
     NewInts = special_zip(
 		utils:sort_using(fun (X) -> element(2, element(1,X)) end,
-				 integer_list:collapse_integer_list(lists:map(fun get_node_prop/1, Ints))),
+				 integer_list:collapse_integer_list(
+				   lists:map(fun (X) -> element(1, get_node_prop(X)) end, Ints))),
 		Ints),
     RenamedNewInts = lists:map(fun add_tag_to_node_id/1, NewInts),
     Drai2 = update_nodes(RenamedNewInts, Drai),
