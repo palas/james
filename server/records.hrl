@@ -51,6 +51,6 @@
 		 collapse_integers = true, collapse_strings = true,
 		 single_file = false,
 		 num_of_islands = 20, % inf = no limit
-		 big_k_value = 4, small_k_value = 100, remove_orphan_nodes = true,
+		 big_k_value = 4, small_k_value = 1, remove_orphan_nodes = true,
 		 discard_calls_beginning_with = ["info"], % assert is another useful option
 		 remove_nodes_up_from = ["createTest", "getLogger", "run"]}).

@@ -422,7 +422,7 @@ collapse_integer_aux({DiaId, ListOfNodes}, Drai) ->
     {UnsortedInts, _} = lists:partition(fun isIntegerNode/1, ListOfNodes),
     Ints = utils:sort_using(fun (X) -> element(2, element(1,get_node_prop(X))) end, UnsortedInts),
     NewInts = special_zip(
-		utils:sort_using(fun (X) -> element(2, element(1,X)) end,
+		utils:sort_using(fun (X) -> element(2, X) end,
 				 integer_list:collapse_integer_list(
 				   lists:map(fun (X) -> element(1, get_node_prop(X)) end, Ints))),
 		Ints),
@@ -440,7 +440,8 @@ special_zip([({integer, _} = NewProp)|Rest], [El|Rest2]) ->
 special_zip([({integer_range, X, Y} = NewProp)|Rest], [(#diagram_node{tags = Tags} = El)|Rest2]) ->
     io:format("integer_range\n"),
     {RElems, NewRest2} = lists:split(Y - X, Rest2),
-    [set_node_prop(NewProp, El#diagram_node{tags = lists:usort(Tags ++ get_tags(RElems))})|special_zip(Rest, NewRest2)].
+    [set_node_prop(NewProp, El#diagram_node{tags = lists:usort(Tags ++ get_tags(RElems))})
+     |special_zip(Rest, NewRest2)].
 
 get_tags([]) -> [];
 get_tags([#diagram_node{tags = Tags}|Rest]) -> Tags ++ get_tags(Rest).
