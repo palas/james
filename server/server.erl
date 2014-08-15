@@ -52,7 +52,7 @@
 	 terminate/2, code_change/3]).
 
 -record(state, {socket, connections = [], calls = [], parsed_calls = empty_parsed(),
-		prefix = "/home/palas/Escritorio/autosave/"}).
+		prefix = none}).
 -record(gc, {traces, last_trace_idx, last_fix_idx, dep_struct}).
 
 %%%===================================================================
