@@ -83,12 +83,12 @@ get_cluster(_) -> none.
 write_nodes([]) -> "";
 write_nodes([#diagram_node{id = Id, label = Label, properties = OldOpts,
 			   is_label_term = IsLabelTerm,
-			   tags = Tags}|Rest]) ->
+			   tags = Tags, class = Class}|Rest]) ->
     EscLabel = case IsLabelTerm of
 		   true -> parser_utils:print_escaped(Label);
 		   false -> parser_utils:escape(Label)
 	       end,
-    Opts = add_tags_to_opts(OldOpts, Tags),
+    Opts = add_class_to_opts(add_tags_to_opts(OldOpts, Tags), Class),
     [[Id, " [label = \"", EscLabel, "\"",
      comma_if_non_empty(Opts), write_opts(Opts), "] ;\n"], write_nodes(Rest)].
 write_arcs([]) -> "";
@@ -114,6 +114,12 @@ add_tags_to_opts(Opts, Tags) ->
 		       translate_bool_to_col(B)}|Opts]
     end.
 
+add_class_to_opts(Opts, Class) ->
+    case Class of
+	error -> [{bg_color, 255, 200, 200},filled|Opts];
+	_ -> Opts
+    end.
+
 translate_bool_to_col(true) -> 127;
 translate_bool_to_col(false) -> 0.
 
@@ -125,6 +131,7 @@ write_opts([]) -> "";
 write_opts([solid]) -> "style=solid";
 write_opts([dashed]) -> "style=dashed";
 write_opts([dotted]) -> "style=dotted";
+write_opts([filled]) -> "style=filled";
 write_opts([arrow_head]) -> "dir=arrowhead";
 write_opts([rectangle]) -> "shape=rectangle";
 write_opts([ellipse]) -> "shape=ellipse";
@@ -133,6 +140,9 @@ write_opts([thick]) -> "penwidth=4";
 write_opts([{color, R, G, B}]) ->
     Color = make_hex_color(R, G, B),
     "color=\"" ++ Color ++ "\", fontcolor=\"" ++ Color ++ "\"";
+write_opts([{bg_color, R, G, B}]) ->
+    Color = make_hex_color(R, G, B),
+    "fillcolor=\"" ++ Color ++ "\"";
 write_opts([{peripheries, N}]) -> "peripheries=" ++ integer_to_list(N);
 write_opts([Else]) -> throw({option_not_defined, Else});
 write_opts([Opt|Rest]) ->

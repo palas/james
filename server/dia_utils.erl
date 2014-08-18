@@ -568,34 +568,43 @@ set_arc_thick(#diagram_arc{properties = List} = Arc) ->
 generate_subgraphs(#drai{dnodes = DNodes} = Drai) ->
     {_ClusterD, BaseClusterNodesSet, DNodes2} = dict:fold(fun get_base_cluster_nodes/3, {dict:new(), sets:new(), DNodes}, DNodes),
     {NewDrai,_,_} = sets:fold(fun depth_search_inc_in_clus/2, {Drai#drai{dnodes = DNodes2}, [], no}, BaseClusterNodesSet),
-	sets:fold(fun find_class/2, NewDrai, BaseClusterNodesSet).
+    sets:fold(fun find_class/2, NewDrai, BaseClusterNodesSet).
 
 find_class(#diagram_node{id = NodeId, cluster = Cluster, tags = Tags} = Node, #drai{dnodes = DNodes} = Drai) ->
 	ChildNodes = dia_utils:expand_nodes_down(sets:from_list([NodeId]), Drai),
-	Names = get_method_names([], Cluster, ChildNodes, Drai),
-	Class = compute_class(Names, Tags),
-	Drai#drai{dnodes = dict:store(NodeId, Node#diagram_node{class = Class}, DNodes)}.
+	NamesAndNodes = get_method_names([], Cluster, ChildNodes, Drai),
+	{Class, NewDNodes} = compute_class_and_set_for_children(NamesAndNodes, Tags, DNodes),
+	Drai#drai{dnodes = dict:store(NodeId, Node#diagram_node{class = Class}, NewDNodes)}.
 
 get_method_names(MNList, Cluster, NodeSet, Drai) ->
 	case sets:size(NodeSet) of
 		0 -> MNList;
-		_ -> {NodeIdSet, ListOfMethodNames, _} = lists:foldl(fun get_method_names_aux/2, {sets:new(), MNList, Cluster},
-														   get_nodes_by_ids(sets:to_list(NodeSet), Drai)),
-			 get_method_names(ListOfMethodNames, Cluster, expand_nodes_down(NodeIdSet, Drai), Drai)
+		_ -> {NodeIdSet, ListOfMethodNames, _} =
+			 lists:foldl(fun get_method_names_aux/2, {sets:new(), MNList, Cluster},
+				     get_nodes_by_ids(sets:to_list(NodeSet), Drai)),
+		     get_method_names(ListOfMethodNames, Cluster, expand_nodes_down(NodeIdSet, Drai), Drai)
 	end.
 
 get_method_names_aux(#diagram_node{id = Id, cluster = Cluster, http_request = no,
-								   content = #callback{method_name = MethodName}},
+				   content = #callback{method_name = MethodName}} = Node,
 					 {NodeIdSet, MethodNameList, Cluster}) ->
-	{sets:add_element(Id, NodeIdSet), [MethodName|MethodNameList], Cluster};
+	{sets:add_element(Id, NodeIdSet), [{MethodName, Node}|MethodNameList], Cluster};
 get_method_names_aux(_, {_,_,_} = Acc) -> Acc.
 
-compute_class(List, Tags) ->
-	case {lists:any(fun contains_error_substring/1, List), lists:member(is_after, Tags)} of
-		{_, true} -> tearDown;
-    	{true, _} -> error;
-		{false, _} -> normal
-	end.
+compute_class_and_set_for_children(List, Tags, DNodes) ->
+    {ContainsErrorSubstring, NewDNodes} = lists:foldl(fun check_class/2, {false, DNodes}, List),
+    {case {ContainsErrorSubstring, lists:member(is_after, Tags)} of
+	 {_, true} -> tearDown;
+	 {true, _} -> error;
+	 {false, _} -> normal
+     end, NewDNodes}.
+
+check_class({MethodName, #diagram_node{id = Id} = Node},
+	    {ContainsErrorSubstring, DNodes}) ->
+    case contains_error_substring(MethodName) of
+	true -> {true, dict:store(Id, Node#diagram_node{class = error}, DNodes)};
+	false -> {ContainsErrorSubstring, DNodes}
+    end.
 
 contains_error_substring(String) ->
 	contains_error_substring_aux(string:to_lower(String)).
