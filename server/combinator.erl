@@ -161,14 +161,14 @@ only_common_and_border(List, Drai) -> remove_empties(
 			     ++ lists:map(fun (X) -> only_common_aux(X, sets:new(), dict:new(), Drai) end, List)).
 
 only_border_aux([], List, _) -> List;
-only_border_aux([#path{ori_node = OriNode,
+only_border_aux([#path{node_ids = [LastNodes|_],
 		       direction = Dir} = Path|Rest], List, Drai) ->
-    OriNodeSet = sets:from_list([dia_utils:get_nod_id(OriNode)]),
+    OriNodeSet = sets:from_list(LastNodes),
     Expansion = case Dir of
-		    upwards -> dia_utils:expand_nodes_down(OriNodeSet, Drai);
-		    downwards -> dia_utils:expand_nodes_up(OriNodeSet, Drai)
+		    upwards -> dia_utils:expand_nodes_up(OriNodeSet, Drai);
+		    downwards -> dia_utils:expand_nodes_down(OriNodeSet, Drai)
 		end,
-    case sets:size(Expansion) of
+    case sets:size(sets:subtract(Expansion, OriNodeSet)) of
 	0 -> only_border_aux(Rest, [Path|List], Drai);
 	_ -> only_border_aux(Rest, List, Drai)
     end.
