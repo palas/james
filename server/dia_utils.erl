@@ -48,8 +48,9 @@
 	 expand_tran_upwards/2, expand_tran_downwards/2, get_nod_ids/1,
 	 get_node_prop/1, get_tran_prop/1, join_node_pairs/3, sort_trans/1,
 	 collapse_integers/1, highlight_loops/1, remove_elliptic_nodes/1,
-	 expand_nodes_down/2, get_node_by_id/2, set_node/2, set_arc/2,
-	 remove_node/2, move_returns/3, get_arcs_up/2, generate_subgraphs/1]).
+	 expand_nodes_down/2, expand_nodes_up/2, get_node_by_id/2, set_node/2,
+	 set_arc/2, remove_node/2, move_returns/3, get_arcs_up/2,
+	 generate_subgraphs/1]).
 
 %% Low level diagram record interface functions
 %% ============================================

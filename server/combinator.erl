@@ -126,11 +126,7 @@ get_best_path_from_group(GroupList,Island,Level,OnlyCommon) ->
 
 additional_last_level_filter(ListOfLists, _Island, false) -> ListOfLists;
 additional_last_level_filter(ListOfLists, Island, true) ->
-    case are_same_http(ListOfLists) of
-    	[] -> only_common(ListOfLists, Island);
-    	Else -> Else
-    end,
-    only_common(ListOfLists, Island).
+    only_common_and_border(ListOfLists, Island).
 
 expanding_filter(ListOfLists) ->
     lists:filter(fun (X) -> length(X) > 1 end, ListOfLists).
@@ -157,16 +153,26 @@ initialise_paths(NodeList, Islands) ->
 
 remove_empties([]) -> [];
 remove_empties([[]|Rest]) -> remove_empties(Rest);
+remove_empties([[_]|Rest]) -> remove_empties(Rest);
 remove_empties([El|Rest]) -> [El|remove_empties(Rest)].
 
-are_same_http(List) -> remove_empties(lists:map(fun (X) -> is_http(X) end, List)).
+only_common_and_border(List, Drai) -> remove_empties(
+			     lists:map(fun (X) -> only_border_aux(X, [], Drai) end, List)
+			     ++ lists:map(fun (X) -> only_common_aux(X, sets:new(), dict:new(), Drai) end, List)).
 
-is_http([#path{ori_node = #diagram_node{http_request = HttpRequest}}|_] = List)
-  when HttpRequest =/= no -> List;
-is_http(_) -> [].
+only_border_aux([], List, _) -> List;
+only_border_aux([#path{ori_node = OriNode,
+		       direction = Dir} = Path|Rest], List, Drai) ->
+    OriNodeSet = sets:from_list([dia_utils:get_nod_id(OriNode)]),
+    Expansion = case Dir of
+		    upwards -> dia_utils:expand_nodes_down(OriNodeSet, Drai);
+		    downwards -> dia_utils:expand_nodes_up(OriNodeSet, Drai)
+		end,
+    case sets:size(Expansion) of
+	0 -> only_border_aux(Rest, [Path|List], Drai);
+	_ -> only_border_aux(Rest, List, Drai)
+    end.
 
-only_common(List, Drai) -> remove_empties(lists:map(fun (X) -> only_common_aux(X, sets:new(), dict:new(), Drai) end, List)).
-%only_common(List) -> only_common_aux(List, sets:new(), dict:new()).
 only_common_aux([], _, _, _) -> [];
 only_common_aux([(#path{node_ids = NodeIds,
 		        ori_node = OriNode} = Path)|Rest], Set, Dict, Drai) ->
