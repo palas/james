@@ -88,7 +88,7 @@ write_nodes([#diagram_node{id = Id, label = Label, properties = OldOpts,
 		   true -> parser_utils:print_escaped(Label);
 		   false -> parser_utils:escape(Label)
 	       end,
-    Opts = add_class_to_opts(add_tags_to_opts(OldOpts, Tags), Class),
+    Opts = remove_duplicated_colors(add_class_to_opts(add_tags_to_opts(OldOpts, Tags), Class)),
     [[Id, " [label = \"", EscLabel, "\"",
      comma_if_non_empty(Opts), write_opts(Opts), "] ;\n"], write_nodes(Rest)].
 write_arcs([]) -> "";
@@ -96,11 +96,16 @@ write_arcs([#diagram_arc{id_start = From,
 			 id_end = To,
 			 properties = Opts}|Rest]) ->
      [[From, " -> ", To, " [", write_opts(
-				 case lists:keymember(color, 1, Opts) of
-				     false -> [{color, 128, 128, 128},arrow_head|Opts];
-				     true -> [arrow_head|Opts]
-				 end),
+				 remove_duplicated_colors([{color, 128, 128, 128},arrow_head|Opts])),
       "] ;\n"], write_arcs(Rest)].
+
+remove_duplicated_colors(List) ->
+    remove_duplicated_colors(none, List).
+remove_duplicated_colors(none, []) -> [];
+remove_duplicated_colors(Else, []) -> [Else];
+remove_duplicated_colors(_, [Color|Rest]) when (element(1, Color) =:= color) ->
+    remove_duplicated_colors(Color, Rest);
+remove_duplicated_colors(Color, [Sth|Rest]) -> [Sth|remove_duplicated_colors(Color, Rest)].
 
 comma_if_non_empty([]) -> ", ";
 comma_if_non_empty(_) -> " ".
