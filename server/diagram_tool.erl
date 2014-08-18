@@ -96,21 +96,11 @@ write_arcs([#diagram_arc{id_start = From,
 			 id_end = To,
 			 properties = Opts}|Rest]) ->
      [[From, " -> ", To, " [", write_opts(
-				 case tol_keymember(color, 1, Opts) of
+				 case lists:keymember(color, 1, Opts) of
 				     false -> [{color, 128, 128, 128},arrow_head|Opts];
 				     true -> [arrow_head|Opts]
 				 end),
       "] ;\n"], write_arcs(Rest)].
-
-tol_keymember(_Elem, _N, []) -> false;
-tol_keymember(Elem, N, [Tuple|Rest]) when is_tuple(Tuple) ->
-    case tuple_to_list(Tuple) of
-	L when (length(L) >= N) andalso (element(N, Tuple) =:= Elem) -> true;
-	_ -> tol_keymember(Elem, N, Rest)
-    end;
-tol_keymember(Elem, N, [_|Rest]) -> tol_keymember(Elem, N, Rest).
-
-	
 
 comma_if_non_empty([]) -> ", ";
 comma_if_non_empty(_) -> " ".
