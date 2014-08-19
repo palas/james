@@ -434,7 +434,6 @@ bool showLocalVariables(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID method, 
       #ifdef DEBUG
         fprintf(stderr, "a (%d) %s, %s - %s\n", slot, (isStatic?"static":"dynamic"), (isNew?"new":"not_new"), simp_sig);
       #endif
-      free(simp_sig);
       return false;
     };
     slot += temp;
@@ -450,7 +449,6 @@ bool showLocalVariables(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID method, 
         #ifdef DEBUG
           fprintf(stderr, "b %d - %s\n", (isStatic?0:1), simp_sig);
         #endif
-	free(simp_sig);
 	return false;
       };
     } else if (simp_sig[i] == 'V') {
@@ -461,7 +459,6 @@ bool showLocalVariables(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID method, 
         #ifdef DEBUG
           fprintf(stderr, "c %d - %s\n", (isStatic?0:1), simp_sig);
         #endif
-	free(simp_sig);
 	return false;
       };
     }
@@ -475,7 +472,6 @@ bool showLocalVariables(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID method, 
         #ifdef DEBUG
           fprintf(stderr, "d %d - %s\n", (isStatic?0:1), simp_sig);
         #endif
-	free(simp_sig);
 	return false;
       };
     } else {
@@ -484,7 +480,6 @@ bool showLocalVariables(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID method, 
   } else {
     msg->push_back("STATIC");
   }
-  free(simp_sig);
   return true;
 }
 
@@ -548,11 +543,12 @@ void traceMethod(int type, int depth, jvmtiEnv *jvmti_env, JNIEnv* jni_env,
   msg.push_back((js.is_before)?"TRUE":"FALSE");
   msg.push_back((js.is_test)?"TRUE":"FALSE");
   msg.push_back((js.is_after)?"TRUE":"FALSE");
-  httpAnalysisPatch(type, depth, jvmti_env, jni_env, method_name, simplify_signature(method_signature),
+  char *simp_sig = simplify_signature(method_signature);
+  httpAnalysisPatch(type, depth, jvmti_env, jni_env, method_name, simp_sig,
       class_signature, is_static, is_native, is_synthetic, thread, method,
       return_value, js, &msg);
   msg.push_back("START_VARS");
-  if (!showLocalVariables(jvmti_env, jni_env, method, thread, simplify_signature(method_signature),
+  if (!showLocalVariables(jvmti_env, jni_env, method, thread, simp_sig,
            return_value, type, is_static, !strcmp("<init>", method_name), &msg)) {
     #ifdef DEBUG
       fprintf(stderr, "IS_NATIVE: %s\n", (is_native?"TRUE":"FALSE"));
@@ -562,8 +558,10 @@ void traceMethod(int type, int depth, jvmtiEnv *jvmti_env, JNIEnv* jni_env,
       fprintf(stderr, "METHOD_NAME: %s\n", method_name);
       fprintf(stderr, "SIG: %s\n", method_signature);
     #endif
+    free(simp_sig);
     return;
   }
+  free(simp_sig);
   msg.push_back("END_VARS");
   msg.push_back("END_CALLBACK");
   sendStrings(jvmti_env, msg);

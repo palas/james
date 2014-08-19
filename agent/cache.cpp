@@ -57,7 +57,7 @@ bool isNotAccessible(jvmtiEnv *jvmti_env, char *nullEndedStr)
 void setNotAccessible(jvmtiEnv *jvmti_env, char *nullEndedStr)
 {
   jvmti_env->RawMonitorEnter(monitorCache);
-  string theString(nullEndedStr, strlen(nullEndedStr));
+  string theString(nullEndedStr);
   accessibleSet.insert(theString);
   jvmti_env->RawMonitorExit(monitorCache);
 }
