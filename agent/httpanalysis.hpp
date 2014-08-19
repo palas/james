@@ -45,6 +45,7 @@
 #include "refs.hpp"
 #include "cache.hpp"
 #include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
 
 using namespace std;
 
@@ -55,6 +56,12 @@ typedef struct junit_sec_str {
   bool is_annotated;
 } junit_sec;
 
+typedef map<jthread,string> threadStringMap;
+
+void remove_http_info(jthread thread);
+
+void get_info_if_http_method(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread,
+                             char *method_name, char *method_signature, char *class_signature);
 
 void httpAnalysisPatch(int type, int depth, jvmtiEnv *jvmti_env, JNIEnv* jni_env,
     char *method_name, char *method_signature, char *class_signature,

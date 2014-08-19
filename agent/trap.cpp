@@ -71,7 +71,7 @@ bool trapInstrumentedCallEntry(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thr
     jvmti_env->IsMethodSynthetic(method, &is_synthetic);
     if (threadDepthMap[thread] < 2) {
       traceMethod(0, threadDepthMap[thread], jvmti_env, jni_env, method_name, method_signature, class_signature,
-	  isMethodStatic(jvmti_env, jni_env, method), is_native, is_synthetic, thread, method, fake_ret, global_js);
+      isMethodStatic(jvmti_env, jni_env, method), is_native, is_synthetic, thread, method, fake_ret, global_js);
     }
     threadDepthMap[thread]++;
     result = true;
@@ -96,7 +96,10 @@ bool trapInstrumentedCallExit(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thre
     threadDepthMap[thread]--;
     if (threadDepthMap[thread] < 2) {
       traceMethod(1, threadDepthMap[thread], jvmti_env, jni_env, method_name, method_signature, class_signature,
-	  isMethodStatic(jvmti_env, jni_env, method), is_native, is_synthetic, thread, method, return_value, global_js);
+                  isMethodStatic(jvmti_env, jni_env, method), is_native, is_synthetic, thread, method, return_value, global_js);
+    }
+    if (threadDepthMap[thread] >= 2) {
+      get_info_if_http_method(jvmti_env, jni_env, thread, method_name, method_signature, class_signature);
     }
     if (threadDepthMap[thread] == 0)
     {

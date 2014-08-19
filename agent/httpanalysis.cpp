@@ -32,10 +32,88 @@
 
 #include "httpanalysis.hpp"
 
+threadStringMap threadHTTPMethodMap;
+threadStringMap threadURLMap;
+
 bool areEqual(const char *constant, const char *variable)
 {
   int length = strlen(constant);
   return !strncmp(constant, variable, length);
+}
+
+void remove_http_info(jthread thread)
+{
+  threadHTTPMethodMap.erase(thread);
+  threadURLMap.erase(thread);
+}
+
+void get_info_if_http_method(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread,
+                             char *method_name, char *method_signature, char *class_signature)
+{
+  if ((areEqual("openConnection", method_name)) and
+      (areEqual("()Ljava/net/URLConnection;", method_signature)) and
+      (areEqual("Ljava/net/URL;", class_signature)))
+  {
+    // Open connection
+    string URL;
+    jboolean isCopy;
+    jint result;
+    jvalue value_val;
+    const char *utf = NULL;
+    jstring string_val = NULL;
+
+    // Obtaining URL
+    result = jvmti_env->GetLocalInstance(thread, 0, &(value_val.l));
+    if (result != JNI_OK) {
+      char *errmsg;
+      jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
+      fprintf(stderr, "Could not read URL from HTTP request! %s\n", errmsg);
+      exit(JNI_ERR);
+    }
+    jclass clazz = jni_env->GetObjectClass(value_val.l);
+    jmethodID toString = jni_env->GetMethodID(clazz, "getPath", "()Ljava/lang/String;");
+    string_val = (jstring)jni_env->CallObjectMethod(value_val.l, toString);
+
+    utf = jni_env->GetStringUTFChars(string_val, &isCopy);
+    URL = utf;
+    jni_env->ReleaseStringUTFChars(string_val, utf);
+
+    // Storing URL
+    threadURLMap[thread] = URL;
+    threadHTTPMethodMap[thread] = "GET";
+
+  } else if ((areEqual("setRequestMethod", method_name)) and
+      (areEqual("(Ljava/lang/String;)V", method_signature)) and
+      (areEqual("Ljava/net/HttpURLConnection;", class_signature)))
+  {
+    // Set request method
+    string methodStr;
+    jboolean isCopy;
+    jint result;
+    jvalue value_val;
+    const char *utf = NULL;
+    jstring string_val = NULL;
+
+    // Obtaining Method
+    result = jvmti_env->GetLocalObject(thread, 0, 1, &value_val.l);
+    if (result != JNI_OK) {
+      char *errmsg;
+      jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
+      fprintf(stderr, "Could not read method from HTTP request! %s\n", errmsg);
+      exit(JNI_ERR);
+    }
+    jclass clazz = jni_env->GetObjectClass(value_val.l);
+    jmethodID toString = jni_env->GetMethodID(clazz, "toString", "()Ljava/lang/String;");
+    string_val = (jstring)jni_env->CallObjectMethod(value_val.l, toString);
+
+    utf = jni_env->GetStringUTFChars(string_val, &isCopy);
+    methodStr = utf;
+    jni_env->ReleaseStringUTFChars(string_val, utf);
+
+    // Storing Method
+    boost::to_upper(methodStr);
+    threadHTTPMethodMap[thread] = methodStr;
+  }
 }
 
 void httpAnalysisPatch(int type, int depth, jvmtiEnv *jvmti_env, JNIEnv* jni_env,
@@ -43,49 +121,13 @@ void httpAnalysisPatch(int type, int depth, jvmtiEnv *jvmti_env, JNIEnv* jni_env
     bool is_static, bool is_native, bool is_synthetic, jthread thread,
     jmethodID method, jvalue return_value, junit_sec js, vector<string> *msg)
 {
-  int methodType = 0; // 0 - no method, 1 - GET, 2 - POST
-  if (areEqual("doGet", method_name)) methodType = 1;
-  if (areEqual("doGetL", method_name)) methodType = 1;
-  if (areEqual("makeRequest", method_name) && (strlen(simplified_method_signature) == 2)) methodType = 1;
-  if (areEqual("doPost", method_name)) methodType = 2;
-  if (areEqual("makeRequest", method_name) && (strlen(simplified_method_signature) == 3)) methodType = 2;
-  if (methodType) {
-    const char *utf = "";
-    jboolean isCopy;
-    jint result;
-    jvalue val_val;
-    jstring string_val = NULL;
-    if (methodType == 1) msg->push_back("GET");
-    if (methodType == 2) msg->push_back("POST");
-    result = jvmti_env->GetLocalObject(thread, 0, 0, &val_val.l);
-    if (result != JNI_OK) {
-      char *errmsg;
-      jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
-      fprintf(stderr, "Could not URL on HTTP request! %s\n", errmsg);
-      exit(JNI_ERR);
-    }
-    jclass clazz = jni_env->GetObjectClass(val_val.l);
-    jmethodID toString = jni_env->GetMethodID(clazz, "toString", "()Ljava/lang/String;");
-    string_val = (jstring)jni_env->CallObjectMethod(val_val.l, toString);
-
-    utf = jni_env->GetStringUTFChars(string_val, &isCopy);
-    msg->push_back(utf);
-    jni_env->ReleaseStringUTFChars(string_val, utf);
-  } else if (areEqual("startServer", method_name)) {
-    msg->push_back("POST");
-    msg->push_back("/StartServer");
-  } else if (areEqual("stopServer", method_name)) {
-    msg->push_back("POST");
-    msg->push_back("/StopServer");
-  } else if (areEqual("allocateFrequency", method_name)) {
-    msg->push_back("POST");
-    msg->push_back("/AllocateFrequency");
-  } else if (areEqual("deallocateFrequency", method_name)) {
-    msg->push_back("POST");
-    msg->push_back("/DeallocateFrequency");
+  if (threadURLMap.count(thread)) {
+    msg->push_back(threadHTTPMethodMap[thread]);
+    msg->push_back(threadURLMap[thread]);
   } else {
     msg->push_back("");
     msg->push_back("");
   }
+  remove_http_info(thread);
 }
 
