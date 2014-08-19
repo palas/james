@@ -170,7 +170,7 @@ void JNICALL MethodExit(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread, jm
 	method_name, method_signature, class_signature))
   {
     if ((strncmp("Ljava", class_signature, 5)) && (strncmp("Lorg/apache/tools/ant", class_signature, 19))
-        && (strncmp("Lorg/apache/maven", class_signature, 17)))
+        && (strncmp("Lorg/apache/maven", class_signature, 17)) && (strncmp("Lsun", class_signature, 4)))
 //    if (strncmp("Ljava", class_signature, 5))
     {
       jvmti_env->IsMethodNative(method, &is_native);
