@@ -132,10 +132,15 @@ dic_values(Dict) ->
 
 %% Groups a list into a list of lists, by using the comparison
 %% criteria Fun
-group_by(_Fun, []) -> [];
-group_by(Fun, [H|T]) ->
-    {Equals, NotEquals} = lists:partition(fun (X) -> Fun(H, X) end, T),
-    [[H|Equals]|group_by(Fun, NotEquals)].
+group_by(Fun, List) ->
+    {Dict, _} = lists:foldl(fun group_by_fold1/2, {dict:new(), Fun}, List),
+    dict:fold(fun group_by_fold2/3, [], Dict).
+
+group_by_fold1(Element, {Dict, Fun}) ->
+    {dict:append(Fun(Element), Element, Dict), Fun}.
+
+group_by_fold2(_, Value, Acc) ->
+    [Value|Acc].
 
 %% Sorts by comparing the result of applying the function Fun to
 %% each element. Use sorting function SortingFun.

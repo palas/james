@@ -160,10 +160,10 @@ get_node_arc_pairs_fold(_, Arc, Acc) ->
     dict:append(get_arc_to(Arc), Arc, Acc).
 
 collapse_arcs_to_diamonds(List) ->
-    GroupedList = utils:group_by(fun compare_arcs/2, List),
+    GroupedList = utils:group_by(fun compare_arcs/1, List),
     lists:map(fun add_diamond_if_several/1, GroupedList).
 
-compare_arcs(A, B) -> get_tran_prop(A) =:= get_tran_prop(B).
+compare_arcs(A) -> get_tran_prop(A).
 
 add_diamond_if_several([A]) -> [A];
 add_diamond_if_several(Several) ->

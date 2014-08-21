@@ -44,9 +44,7 @@
 -export([sort_arcs/1]).
 
 sort_arcs(ArcsList) ->
-    Grouped = utils:group_by(fun (#diagram_arc{id_start = From},
-				  #diagram_arc{id_start = From}) -> true;
-				 (_,_) -> false end, ArcsList),
+    Grouped = utils:group_by(fun (#diagram_arc{id_start = From}) -> From end, ArcsList),
     SortedGroups = lists:map(fun sort_group/1, Grouped),
     lists:concat(SortedGroups).
 
@@ -92,7 +90,7 @@ collapse_on_el1_aux(Elem, [{Elem, SElem}|Rest]) ->
 collapse_on_el1_aux(_, []) -> [].
 
 fil_and_org_tags(Tags) ->
-    utils:group_by(fun ({Ori, _}, {Ori, _}) -> true; (_, _) -> false end,
+    utils:group_by(fun ({Ori, _}) -> Ori end,
 		   [{Ori, Id} || {historic_rel, Ori, Id, _} <- Tags]).
 
 find_sortings([{O, List1}|Rest], [{O, List2}|Rest2]) ->

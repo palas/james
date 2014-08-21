@@ -99,7 +99,7 @@ join_path_pair(#path{node_ids = ListOfLists},
 group_paths(PathList) ->
     NewPathList = lists:filter(fun has_not_path_loop/1, PathList),
     NewNewPathList = lists:filter(fun not_reached_top/1, NewPathList),
-    utils:group_by(fun compare_paths/2, NewNewPathList).
+    utils:group_by(fun compare_paths/1, NewNewPathList).
 
 has_not_path_loop(#path{node_ids = List}) ->
     length(lists:usort(List)) =:= length(List).
@@ -107,18 +107,8 @@ has_not_path_loop(#path{node_ids = List}) ->
 not_reached_top(#path{cur_list_nodes = []}) -> false;
 not_reached_top(_) -> true.
 
-compare_paths(#path{cur_list_nodes = CurList1, direction = Dir},
-	      #path{cur_list_nodes = CurList2, direction = Dir}) ->
-    %% case length(CurList1) > 4 of
-    %% 	true -> io:format("===~n~p~n~p~n", [lists:sort([{P1, get_node_prop(N1)}|| {P1, N1} <- CurList1]),
-    %% 					    lists:sort([{P2, get_node_prop(N2)}|| {P2, N2} <- CurList2])]),
-    %% 		io:format("~p ~p~n", [lists:sort([{P1, get_node_prop(N1)}|| {P1, N1} <- CurList1]) =:=	
-    %% 	lists:sort([{P2, get_node_prop(N2)}|| {P2, N2} <- CurList2]), Depth]);
-    %% 	_ -> ok
-    %% end,
-    lists:sort([{P1, dia_utils:get_node_prop(N1)}|| {P1, N1} <- CurList1]) =:=	
-	lists:sort([{P2, dia_utils:get_node_prop(N2)}|| {P2, N2} <- CurList2]);
-compare_paths(_, _) -> false.
+compare_paths(#path{cur_list_nodes = CurList1, direction = Dir}) ->
+    {lists:sort([{P1, dia_utils:get_node_prop(N1)}|| {P1, N1} <- CurList1]), Dir}.
 
 
 % Returns the length of a path as an Integer

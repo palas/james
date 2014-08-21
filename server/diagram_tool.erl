@@ -54,7 +54,7 @@ write_diagram(Nodes, Arcs) ->
      "}\n\n"].
 
 write_clustered_nodes(Nodes) ->
-    Clusters = utils:group_by(fun compare_clusters/2, Nodes),
+    Clusters = utils:group_by(fun compare_clusters/1, Nodes),
     lists:map(fun write_node_cluster/1, Clusters).
 
 write_node_cluster([DiaNode|_] = List) ->
@@ -71,11 +71,8 @@ cluster_open(Name, Title) ->
 
 cluster_close() -> "}\n".
 
-compare_clusters(A, B) ->
-    case {get_cluster(A), get_cluster(B)} of
-	{{cluster, C, _}, {cluster, C, _}} -> true;
-	_ -> false
-    end.
+compare_clusters(A) -> {cluster, C, _} = get_cluster(A),
+                       {cluster, C}.
 
 get_cluster(#diagram_node{cluster = {cluster, Id, Title}}) -> {cluster, Id, Title};
 get_cluster(_) -> none.
