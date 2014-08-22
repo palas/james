@@ -75,8 +75,8 @@ start() ->
 	Else -> Else
     end.
 
-get_port(Pid) -> gen_server:call(Pid, get_port).
-get_messages(Pid) -> gen_server:call(Pid, get_messages).
+get_port(Pid) -> gen_server:call(Pid, get_port, infinity).
+get_messages(Pid) -> gen_server:call(Pid, get_messages, infinity).
 new_message(Pid, Sender, Pkg) -> gen_server:cast(Pid, {new_message, Sender, Pkg, self()}).
 new_connection(Pid) -> gen_server:cast(Pid, new_connection).
 clear_messages(Pid) -> gen_server:cast(Pid, clear_messages).
@@ -92,7 +92,7 @@ load_messages(Pid, File) ->
 	Error -> Error
     end.
 
-stop(Pid) -> gen_server:call(Pid, terminate).
+stop(Pid) -> gen_server:call(Pid, terminate, infinity).
 
 %%%===================================================================
 %%% gen_server callbacks
