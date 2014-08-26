@@ -71,8 +71,10 @@ cluster_open(Name, Title) ->
 
 cluster_close() -> "}\n".
 
-compare_clusters(A) -> {cluster, C, _} = get_cluster(A),
-                       {cluster, C}.
+compare_clusters(A) -> case get_cluster(A) of
+			   {cluster, C, _} -> {cluster, C};
+			   none -> none
+		       end.
 
 get_cluster(#diagram_node{cluster = {cluster, Id, Title}}) -> {cluster, Id, Title};
 get_cluster(_) -> none.
