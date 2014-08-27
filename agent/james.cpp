@@ -128,7 +128,8 @@ void JNICALL MethodEntry(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread, j
   {
     if ((strncmp("Ljava", class_signature, 5)) && (strncmp("Lorg/apache/tools/ant", class_signature, 19))
         && (strncmp("Lorg/apache/maven", class_signature, 17)) && (strncmp("Lsun", class_signature, 4)) && (strncmp("Lorg/codehaus/plexus", class_signature, 20))
-        && (strncmp("Lorg/sonatype", class_signature, 13)) && (strncmp("Lcom/google", class_signature, 11)) && (strncmp("Lcom/sun", class_signature, 8) && (strncmp("Lorg/jacoco", class_signature, 11))))
+        && (strncmp("Lorg/sonatype", class_signature, 13)) && (strncmp("Lcom/google", class_signature, 11)) && (strncmp("Lcom/sun", class_signature, 8)) && (strncmp("Lorg/jacoco", class_signature, 11))
+        && (strncmp("Lorg/eclipse", class_signature, 12)))
 //    if (strncmp("Ljava", class_signature, 5))
     {
       jvmti_env->IsMethodNative(method, &is_native);
@@ -172,7 +173,8 @@ void JNICALL MethodExit(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread, jm
   {
     if ((strncmp("Ljava", class_signature, 5)) && (strncmp("Lorg/apache/tools/ant", class_signature, 19))
         && (strncmp("Lorg/apache/maven", class_signature, 17)) && (strncmp("Lsun", class_signature, 4)) && (strncmp("Lorg/codehaus/plexus", class_signature, 20))
-        && (strncmp("Lorg/sonatype", class_signature, 13)) && (strncmp("Lcom/google", class_signature, 11)) && (strncmp("Lcom/sun", class_signature, 8) && (strncmp("Lorg/jacoco", class_signature, 11))))
+        && (strncmp("Lorg/sonatype", class_signature, 13)) && (strncmp("Lcom/google", class_signature, 11)) && (strncmp("Lcom/sun", class_signature, 8)) && (strncmp("Lorg/jacoco", class_signature, 11))
+        && (strncmp("Lorg/eclipse", class_signature, 12)))
 //    if (strncmp("Ljava", class_signature, 5))
     {
       jvmti_env->IsMethodNative(method, &is_native);
