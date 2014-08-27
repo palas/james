@@ -39,8 +39,8 @@
 %%%-------------------------------------------------------------------
 -module(trace_gc).
 
--export([new_struct/0, remove_item/2, add_item/3,
-	 get_deps_for_item/2, check_residues/1]).
+-export([new_struct/0, remove_item/3, add_item/4,
+	 get_deps_for_item/3, check_residues/1]).
 
 -record(tgc_struct, {ref_rec_dict = dict:new(), num_rec_dict = dict:new(),
 		     rec_num_dict = dict:new()}).
@@ -50,10 +50,13 @@
 
 new_struct() -> #tgc_struct{}.
 
-remove_item(DS, Idx) ->
-    try remove_item_aux(DS, Idx)
-    catch
-	throw:error -> error
+remove_item(DS,Idx,Disable) ->
+    case Disable of
+	true -> {DS, []};
+	false -> try remove_item_aux(DS, Idx)
+		 catch
+		     throw:error -> error
+		 end
     end.
 
 remove_item_aux(#tgc_struct{} = DS, Idx) ->
@@ -62,10 +65,13 @@ remove_item_aux(#tgc_struct{} = DS, Idx) ->
     SetOfNewUnref = gb_sets:intersection(PreSetOfUnref, Deps),
     gb_sets:fold(fun remove_items_fold/2, {NewDS, []}, SetOfNewUnref).
 
-get_deps_for_item(#tgc_struct{ref_rec_dict = Dict}, Item) ->
-    case dict:find(Item, Dict) of
-	{ok, Val} -> {ok, gb_sets:to_list(Val)};
-	error -> error
+get_deps_for_item(#tgc_struct{ref_rec_dict = Dict},Item,Disable) ->
+    case Disable of
+	true -> {ok, []};
+	false -> case dict:find(Item, Dict) of
+		     {ok, Val} -> {ok, gb_sets:to_list(Val)};
+		     error -> error
+		 end
     end.
 
 % Remove Aux
@@ -89,12 +95,16 @@ remove_from_struct(DS, Idx) ->
     {update_references(SetDependent,DS3,-1), SetDependent}.
 % END Remove Aux
 
-add_item(DS, Idx, Deps) ->
-    SetDeps = gb_sets:from_list(Deps),
-    DS2 = set_num_rec(0, gb_sets:add_element(Idx, get_num_rec(0, DS)), DS),
-    DS3 = add_to_rec_num(0, Idx, DS2),
-    DS4 = add_set_of_dependent(Idx, SetDeps, DS3),
-    update_references(SetDeps,DS4,1).
+add_item(DS,Idx,Deps,Disable) ->
+    case Disable of
+	true -> DS;
+	false ->
+	    SetDeps = gb_sets:from_list(Deps),
+	    DS2 = set_num_rec(0, gb_sets:add_element(Idx, get_num_rec(0, DS)), DS),
+	    DS3 = add_to_rec_num(0, Idx, DS2),
+	    DS4 = add_set_of_dependent(Idx, SetDeps, DS3),
+	    update_references(SetDeps,DS4,1)
+    end.
 
 check_residues(#tgc_struct{ref_rec_dict = RefRec,
 			   num_rec_dict = NumRec,

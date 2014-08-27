@@ -55,6 +55,8 @@
 		prefix = none}).
 -record(gc, {traces, last_trace_idx, last_fix_idx, dep_struct}).
 
+-define(DISABLE_GC, true).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -165,12 +167,17 @@ handle_cast(new_connection, #state{socket = Socket, connections = Conn} = State)
     {noreply, State#state{connections = [create_listener(self(), Socket)|Conn]}};
 handle_cast({new_message, Sender, Pkg, Pid},
 	    #state{calls = Calls, parsed_calls = Parsed} = State) ->
-    {Rest, NewParsed} = case [{Sender, Pkg}|Calls] of
-			    List when length(List) > 1000 -> parse_new_calls(List, Parsed);
-			    List -> {List, Parsed}
+    try begin
+	    {Rest, NewParsed} = case [{Sender, Pkg}|Calls] of
+				    List when length(List) > 1000 -> parse_new_calls(List, Parsed);
+				    List -> {List, Parsed}
 			end,
-    Pid ! parsed,
-    {noreply, State#state{calls = Rest, parsed_calls = NewParsed}};
+	    Pid ! parsed,
+	    {noreply, State#state{calls = Rest, parsed_calls = NewParsed}}
+	end
+    catch
+	Class:Exception -> io:format("Exception in server!!! ~p:~p~n", [Class, Exception])
+    end;
 handle_cast(clear_messages, #state{} = State) ->
     {noreply, State#state{calls = [], parsed_calls = empty_parsed()}};
 handle_cast({send_closed_connection, OtherPid},
@@ -372,7 +379,7 @@ store_and_index(#callback{params = Params,
 find_deps_for_params(List, #gc{dep_struct = DS}) ->
     lists:usort(lists:concat([Value
 			      || Item <- List,
-				 {ok, Value} <- [trace_gc:get_deps_for_item(DS, Item)]])).
+				 {ok, Value} <- [trace_gc:get_deps_for_item(DS, Item, ?DISABLE_GC)]])).
 
 register_trace_with_deps(Trace, Deps, #gc{last_trace_idx = IdxNum,
 					  traces = Traces,
@@ -380,18 +387,18 @@ register_trace_with_deps(Trace, Deps, #gc{last_trace_idx = IdxNum,
     Idx = {trace, IdxNum},
     {GC#gc{traces = dict:store(Idx, Trace, Traces),
 	   last_trace_idx = IdxNum + 1,
-	   dep_struct = trace_gc:add_item(DS, Idx, Deps)}, Idx}.
+	   dep_struct = trace_gc:add_item(DS, Idx, Deps, ?DISABLE_GC)}, Idx}.
 
 register_fix(TraceIdx, #gc{last_fix_idx = IdxNum,
 			   dep_struct = DS} = GC) ->
     Idx = {fix, IdxNum},
     GC#gc{last_fix_idx = IdxNum + 1,
-	  dep_struct = trace_gc:add_item(DS, Idx, [TraceIdx])}.
+	  dep_struct = trace_gc:add_item(DS, Idx, [TraceIdx], ?DISABLE_GC)}.
 
 register_item_with_deps(#value{obj_info = #obj_info{identifier = Tag}}, Deps,
 			#gc{dep_struct = DS} = GC) ->
     Idx = {item, Tag},
-    GC#gc{dep_struct = trace_gc:add_item(DS, Idx, Deps)};
+    GC#gc{dep_struct = trace_gc:add_item(DS, Idx, Deps, ?DISABLE_GC)};
 register_item_with_deps(_, _, GC) -> GC.
 
 remove_and_gc(#free_event{tag = Tag}, GC) ->
@@ -405,6 +412,6 @@ unregister_if_registered(#value{obj_info = #obj_info{identifier = Idx}}, GC) ->
 unregister_if_registered(_, GC) -> GC.
 
 rem_tag_from_struct(Tag, #gc{traces = Traces, dep_struct = DS} = GC) ->
-    {NewDS, Deps} = trace_gc:remove_item(DS, Tag),
+    {NewDS, Deps} = trace_gc:remove_item(DS, Tag, ?DISABLE_GC),
     GC#gc{traces = lists:foldl(fun dict:erase/2, Traces, [Idx || {trace, Idx} <- Deps]),
 	  dep_struct = NewDS}.
