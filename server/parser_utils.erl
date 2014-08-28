@@ -44,17 +44,17 @@
 
 -include("records.hrl").
 
-group(List) -> [{A, lists:reverse(B)} || {A, B} <- dict:to_list(group(List, dict:new()))].
+group(List) -> [{A, lists:reverse(B)} || {A, B} <- gb_trees:to_list(group(List, gb_trees:empty()))].
 group([], Dict) -> Dict;
-group([{Pid, Trace}|Tail], Dict) -> group(Tail, custom_dict_append(Pid, Trace, Dict)).
+group([{Pid, Trace}|Tail], Dict) -> group(Tail, custom_gb_tree_append(Pid, Trace, Dict)).
 
 ungroup([]) -> [];
 ungroup([{A, List}|Rest]) -> [{A, Elem} || Elem <- List] ++ ungroup(Rest).
 
-custom_dict_append(Key, Value, Dict) ->
-    case dict:find(Key, Dict) of
-	{ok, OldValue} -> dict:store(Key, [Value|OldValue], Dict);
-	error -> dict:store(Key, [Value], Dict)
+custom_gb_tree_append(Key, Value, Tree) ->
+    case gb_trees:lookup(Key, Tree) of
+	{value, OldValue} -> gb_trees:enter(Key, [Value|OldValue], Tree);
+	none -> gb_trees:enter(Key, [Value], Tree)
     end.
 
 read_callbacks([]) -> [];

@@ -146,9 +146,18 @@ handle_call(get_port, _From, #state{socket = Socket} = State) ->
 handle_call(terminate, _From, State) ->
     {stop, normal, ok, State};
 handle_call(get_messages, _From, #state{calls = Calls, parsed_calls = Parsed} = State) ->
-    {Rest, NewParsed} = parse_new_calls(Calls, Parsed),
-    {reply, {ok, parsed_to_list(NewParsed)}, State#state{calls = Rest,
-							 parsed_calls = NewParsed}};
+    try begin
+	    {Rest, NewParsed} = parse_new_calls(Calls, Parsed),
+	    {reply, {ok, parsed_to_list(NewParsed)}, State#state{calls = Rest,
+								 parsed_calls = NewParsed}}
+	end
+    catch
+	Class:Exception ->
+	    StackTrace = erlang:get_stacktrace(),
+	    io:format("Exception in server!!! ~p:~p~nStack Trace:~p~n",
+		      [Class, Exception, StackTrace]),
+	    {stop, error, {error, Class, Exception, StackTrace}, State}
+    end;
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -164,7 +173,14 @@ handle_call(_Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast(new_connection, #state{socket = Socket, connections = Conn} = State) ->
-    {noreply, State#state{connections = [create_listener(self(), Socket)|Conn]}};
+    try begin
+	    {noreply, State#state{connections = [create_listener(self(), Socket)|Conn]}}
+	end
+    catch
+	Class:Exception -> io:format("Exception in server!!! ~p:~p~nStack Trace:~p~n",
+				     [Class, Exception, erlang:get_stacktrace()]),
+			   {noreply, State}
+    end;
 handle_cast({new_message, Sender, Pkg, Pid},
 	    #state{calls = Calls, parsed_calls = Parsed} = State) ->
     try begin
@@ -176,22 +192,45 @@ handle_cast({new_message, Sender, Pkg, Pid},
 	    {noreply, State#state{calls = Rest, parsed_calls = NewParsed}}
 	end
     catch
-	Class:Exception -> io:format("Exception in server!!! ~p:~p~n", [Class, Exception])
+	Class:Exception -> io:format("Exception in server!!! ~p:~p~nStack Trace:~p~n",
+				     [Class, Exception, erlang:get_stacktrace()]),
+			   {noreply, State}
     end;
 handle_cast(clear_messages, #state{} = State) ->
-    {noreply, State#state{calls = [], parsed_calls = empty_parsed()}};
+    try begin
+	    {noreply, State#state{calls = [], parsed_calls = empty_parsed()}}
+	end
+    catch
+	Class:Exception -> io:format("Exception in server!!! ~p:~p~nStack Trace:~p~n",
+				     [Class, Exception, erlang:get_stacktrace()]),
+			   {noreply, State}
+    end;
 handle_cast({send_closed_connection, OtherPid},
 	    #state{calls = Calls, parsed_calls = Parsed,
 		   prefix = Prefix} = State) ->
-    {Rest, NewParsed} = parse_new_calls(Calls, Parsed),
-    NewParsedMinus = case Prefix of
-	none -> NewParsed;
-	_ -> save_calls(OtherPid, NewParsed, Prefix),
-	     remove_calls(OtherPid, NewParsed)
-    end,
-    {noreply, State#state{calls = Rest, parsed_calls = NewParsedMinus}};
+    try begin
+	    {Rest, NewParsed} = parse_new_calls(Calls, Parsed),
+	    NewParsedMinus = case Prefix of
+				 none -> NewParsed;
+				 _ -> save_calls(OtherPid, NewParsed, Prefix),
+				      remove_calls(OtherPid, NewParsed)
+			     end,
+	    {noreply, State#state{calls = Rest, parsed_calls = NewParsedMinus}}
+	end
+    catch
+	Class:Exception -> io:format("Exception in server!!! ~p:~p~nStack Trace:~p~n",
+				     [Class, Exception, erlang:get_stacktrace()]),
+			   {noreply, State}
+    end;
 handle_cast({set_messages, Messages}, #state{} = State) ->
-    {noreply, State#state{calls = [], parsed_calls = parsed_from_list(Messages)}};
+    try begin
+	    {noreply, State#state{calls = [], parsed_calls = parsed_from_list(Messages)}}
+	end
+    catch
+	Class:Exception -> io:format("Exception in server!!! ~p:~p~nStack Trace:~p~n",
+				     [Class, Exception, erlang:get_stacktrace()]),
+			   {noreply, State}
+    end;
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -312,7 +351,9 @@ parse_call_list({Pid, List}, Parsed) ->
     {{Pid, NonParsable}, NewParsed}.
 
 split_parsable(List) ->
-    {NonParsable, Parsable} = lists:splitwith(fun ("END_CALLBACK") -> false; (_) -> true end,
+    {NonParsable, Parsable} = lists:splitwith(fun ("END_CALLBACK") -> false;
+						  ("END_FREE_EVENT") -> false;
+						  (_) -> true end,
 					      List),
     {lists:reverse(Parsable), NonParsable}.
 
