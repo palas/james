@@ -81,7 +81,11 @@ read_callbacks(["START_CALLBACK", TypeT, DepthT, DynamicT, MethodName, ClassSign
 	       http_request = case {HttpMethod, HttpURL} of
 				  {"", ""} -> no;
 				  {"GET", URL} -> {get, URL};
-				  {"POST", URL} -> {post, URL}
+				  {"POST", URL} -> {post, URL};
+				  {"PUT", URL} -> {put, URL};
+				  {"DELETE", URL} -> {delete, URL};
+				  {"HEAD", URL} -> {head, URL};
+				  {"UPDATE", URL} -> {update, URL}
 			      end,
 	       this = This}|read_callbacks(NewRest)].
 
