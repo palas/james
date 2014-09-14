@@ -42,21 +42,26 @@
 -include("records.hrl").
 
 -export([get_drai/2, get_drai/3, gen_dia_to_files/3, gen_dia_to_files/4, list_traces/1,
-	 save_filtered_messages/2, save_filtered_messages/3]).
+	 save_filtered_messages/2, save_filtered_messages/3, drai_to_file/2]).
 
 get_drai(Pid, N) -> get_drai(Pid, N, #config{}).
-get_drai(Pid, N, Config) -> {Nodes, Arcs} =
-				filter_and_gen_dia(
-				  fetch_traces(Pid, N),
-				  Config#config{
-				    remove_bubbles = false,
-				    highlight_loops = false,
-				    collapse_integers = true,
-				    collapse_strings = true,
-				    single_file = false,
-				    num_of_islands = 1,
-				    remove_orphan_nodes = true}),
-			    dia_utils:create_drai(Nodes, Arcs).
+get_drai(Pid, N, PreConfig) ->
+    Config = PreConfig#config{remove_bubbles = false,
+			      highlight_loops = false,
+			      collapse_integers = true,
+			      collapse_strings = true,
+			      single_file = true,
+			      num_of_islands = 1,
+			      remove_orphan_nodes = true},
+    {ONodes, OArcs} = filter_and_gen_dia(fetch_traces(Pid, N), Config),
+    [{Nodes, Arcs}] = combinator:combinate(ONodes, OArcs, Config),
+    dia_utils:create_drai(Nodes, Arcs).
+
+drai_to_file(File, Drai) ->
+    {Nodes, Arcs} = islands:fusion_islands([Drai]),
+    file:write_file(File, list_to_binary(
+			    lists:flatten(
+			      diagram_tool:write_diagram(Nodes, Arcs)))).
 
 save_filtered_messages(Pid,File) ->
     save_filtered_messages(Pid,File,#config{}).
