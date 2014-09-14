@@ -41,8 +41,22 @@
 
 -include("records.hrl").
 
--export([gen_dia_to_files/3, gen_dia_to_files/4, list_traces/1,
+-export([get_drai/2, get_drai/3, gen_dia_to_files/3, gen_dia_to_files/4, list_traces/1,
 	 save_filtered_messages/2, save_filtered_messages/3]).
+
+get_drai(Pid, N) -> get_drai(Pid, N, #config{}).
+get_drai(Pid, N, Config) -> {Nodes, Arcs} =
+				filter_and_gen_dia(
+				  fetch_traces(Pid, N),
+				  Config#config{
+				    remove_bubbles = false,
+				    highlight_loops = false,
+				    collapse_integers = true,
+				    collapse_strings = true,
+				    single_file = false,
+				    num_of_islands = 1,
+				    remove_orphan_nodes = true}),
+			    dia_utils:create_drai(Nodes, Arcs).
 
 save_filtered_messages(Pid,File) ->
     save_filtered_messages(Pid,File,#config{}).
@@ -58,9 +72,12 @@ diagram_to_files(File, List, Config) ->
      || {N, Diagram} <- lists:zip(lists:seq(1,length(Diagrams)), Diagrams)].
 
 make_diagram(List, Config) ->
-    {ONodes, OArcs} = gen_diagram(filter_non_important(List, Config)),
+    {ONodes, OArcs} = filter_and_gen_dia(List, Config),
     [diagram_tool:write_diagram(Nodes, Arcs)
      || {Nodes, Arcs} <- combinator:combinate(ONodes, OArcs, Config)].
+
+filter_and_gen_dia(List, Config) ->
+    gen_diagram(filter_non_important(List, Config)).
 
 list_traces(Pid) ->
     Traces = get_traces(Pid),
@@ -70,7 +87,9 @@ list_traces(Pid) ->
 gen_dia_to_files(Pid,N,File) -> gen_dia_to_files(Pid, N, File, #config{}).
 
 gen_dia_to_files(Pid,N,File,Config) ->
-    diagram_to_files(File,element(2, hd(get_traces(Pid, [N]))),Config).
+    diagram_to_files(File,fetch_traces(Pid, N),Config).
+
+fetch_traces(Pid, N) -> element(2, hd(get_traces(Pid, [N]))).
 
 get_traces(Pid) -> get_traces(Pid, all).
 get_traces(Pid, NList) ->
