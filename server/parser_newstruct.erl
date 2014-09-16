@@ -314,8 +314,10 @@ link_control_to_one(#callback{depth = 0, tags = Tags}, _, #temp_info{from_setUp 
 	{is_test, false} -> TInfo#temp_info{from_setUp = false, last_http = none};
 	_ -> TInfo
     end;
-link_control_to_one(#callback{http_request = Req}, Id, #temp_info{last_http = none} = TempInfo)
-  when Req =/= no -> TempInfo#temp_info{last_http = Id};
+link_control_to_one(#callback{http_request = Req}, Id, #temp_info{last_http = none} = OriTempInfo)
+  when Req =/= no ->
+    TempInfo = tag_entry_point(Id, OriTempInfo),
+    TempInfo#temp_info{last_http = Id};
 link_control_to_one(#callback{http_request = Req}, Id, #temp_info{last_http = LastId} = TInfo)
   when Req =/= no ->
     {TInfo2, ArcId} = get_new_entity_id(TInfo),
@@ -323,6 +325,12 @@ link_control_to_one(#callback{http_request = Req}, Id, #temp_info{last_http = La
     TInfo3 = add_to_entity_index(ArcId, Arc, TInfo2),
     TInfo3#temp_info{last_http = Id};
 link_control_to_one(_, _, TInfo) -> TInfo.
+
+tag_entry_point(Id, #temp_info{entity_index = EIndex} = TempInfo) ->
+    Entity = dict:fetch(Id, EIndex),
+    UpdatedEntity = Entity#diagram_node{
+		      tags = [entry_point|Entity#diagram_node.tags]},
+    TempInfo#temp_info{entity_index = dict:store(Id, UpdatedEntity, EIndex)}.
 
 %    TInfo5 = link_all_to_one(ResDeps, Id, TInfo4), % Link each dep with new node
 link_all_to_one(Deps, Dest, TInfo) ->
