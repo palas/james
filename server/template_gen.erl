@@ -37,7 +37,7 @@
 %%% ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 %%% POSSIBILITY OF SUCH DAMAGE.
 %%%-------------------------------------------------------------------
--module(model_gen).
+-module(template_gen).
 
 -include("records.hrl").
 
