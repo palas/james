@@ -6,10 +6,94 @@
 
 -module(eqc_fsm_gen).
 
--export([eqc_fsm/2,eqc_fsm/3,pp_eunit/2]).
+-export([gen_eqc/4, gen_eqc/3, eqc_fsm/2,eqc_fsm/3,pp_eunit/2]).
 -include("records.hrl").
 -include("visualize.hrl").
 
+gen_eqc(Pid, N, Path, ModuleName) ->
+    gen_eqc(parser_newstruct:get_drai(Pid, N), Path, ModuleName).
+
+gen_eqc(Drai, Path, ModuleName) ->
+    List = dict:to_list(Drai#drai.dnodes),
+    AList = dict:to_list(Drai#drai.darcs),
+    {NodeDict, NodeListDict, NodeList} = extract_node_info(List),
+    ArcList = extract_arc_info(List, AList, NodeDict),
+    FSM = compose_fsm(ModuleName, NodeListDict, NodeList, ArcList),
+    file:write_file(Path ++ atom_to_list(ModuleName) ++ "_eqc.erl",
+		    eqc_fsm(FSM, ModuleName, [])).
+
+compose_fsm(ModuleName, NodeListDict, NodeList, ArcList) ->
+    #fa{st = ["0"|dict:fetch_keys(NodeListDict)],
+	alph = [{ModuleName, callback, P}
+	        || {_, {_M, P}} <- NodeList],
+	iSt = "0",
+	tr = [begin
+		  {_MethodName, P} = dict:fetch(End, NodeListDict),
+		  {Ori,
+		   {#titem{id = 0, mod = ModuleName,
+			   func = callback,
+			   arity = length(P), args = P,
+			   pn = none, pat = none, res = none},
+		    [#titem{id = 0, mod = ModuleName,
+			    func = callback,
+			    arity = length(P), args = P,
+			    pn = none, pat = none, res = none}]},
+		   End}
+	      end
+	      || {Ori, End} <- ArcList],
+        fSt = []}.
+
+extract_arc_info(List, AList, NodeDict) ->
+    DiamondList = [{IdEnd, IdStart}
+		   || {_, #diagram_arc{
+			     id_start = IdStart,
+			     id_end =   ("diamond" ++ _)  = IdEnd,
+			     content = http_order
+			    }} <- AList,
+		      dict:is_key(IdStart, NodeDict)],
+    ExtNodeDict = lists:foldl(
+		    fun ({X, Y}, Z) -> dict:store(X, Y, Z) end,
+		    NodeDict, DiamondList),
+    [{"0", Id}
+     || {Id, #diagram_node{
+		tags = Tags
+	       }} <- List,
+	is_entry_point(Tags)]
+++ [{dict:fetch(IdStart, ExtNodeDict),
+  IdEnd} ||
+    {_, #diagram_arc{
+	   id_start = IdStart,
+	   id_end = IdEnd,
+	   content = http_order
+	  }} <- AList,
+    dict:is_key(IdStart, ExtNodeDict),
+   dict:is_key(IdEnd, NodeDict)].
+
+extract_node_info(List) ->
+    NodeList = [{Id, {Method, [Id, template_gen:callback_to_map(Callback),
+			       case This of
+				   static -> Params;
+				   new -> Params;
+				   undefined -> Params;
+				   This -> [This|Params]
+			       end]}} ||
+		   {Id, #diagram_node{
+			   content =  #callback{
+					 method_name = Method,
+					 params = Params,
+					 this = This,
+					 depth = 1} = Callback,
+			   http_request = Http}} <- List,
+		   Http =/= no],
+    NodeDict = lists:foldl(
+		   fun (X, Y) -> dict:store(X, X, Y) end,
+		   dict:new(), [element(1, Z) || Z <- NodeList]),
+    NodeListDict = dict:from_list(NodeList),
+    {NodeDict, NodeListDict, NodeList}.
+
+is_entry_point([entry_point|_]) -> true;
+is_entry_point([_Else|Rest]) -> is_entry_point(Rest);
+is_entry_point([]) -> false.
 
 % @spec (titem(),atom()) -> syntaxTree()
 % Writes a Bluefringe automata to file as a QuickCheck state machine template
@@ -44,9 +128,9 @@ trailer(Module,Calls) ->
       erl_syntax:atom(precondition),
       [ erl_syntax:clause([erl_syntax:variable("_From"),erl_syntax:variable("_To"),erl_syntax:variable("_S"),
                            erl_syntax:tuple([erl_syntax:atom(call),
-                                            erl_syntax:variable("_"),
-                                            erl_syntax:abstract(Fun),
-                                            erl_syntax:list([erl_syntax:variable("_") || _<-lists:seq(1,Args)])])],[],
+					     erl_syntax:variable("_"),
+					     erl_syntax:abstract(Fun),
+					     erl_syntax:list([erl_syntax:variable("_") || _<-lists:seq(1,Args)])])],[],
                           [erl_syntax:atom(true) ]) ||
         {_Mod,Fun,Args} <- Calls ])] ++
   % initial_state_data
@@ -166,7 +250,7 @@ trans_gen([{From,Transitions}|Rest]) ->
                       erl_syntax:list(mergeargs(cart(Argss))),
                     [{To,eqccall(Mod,Fun,MergeArgs)}|Trs];
                    ({{To,Mod,Fun},[Args]},Trs) ->
-                    [{To,eqccall(Mod,Fun,erl_syntax:abstract(Args))}|Trs]
+                    [{To,eqccall(Mod,Fun,map_abstract(Args))}|Trs]
                 end,[],MergedCalls),
   [mkfunc(From,Trans)|trans_gen(Rest)].
 
@@ -252,3 +336,13 @@ pp(SUT,[{{set,_V,Call},Return}|Rest]) ->
   if length(Rest) > 0 -> io:format(",\n"), pp(SUT,Rest);
      true -> io:format(".\n\n")
   end.
+
+
+map_abstract(List) when is_list(List) ->
+    erl_syntax:list(lists:map(fun map_abstract/1, List));
+map_abstract(Map) when is_map(Map) ->
+    erl_syntax:map_expr(
+      [erl_syntax:map_field_assoc(erl_syntax:abstract(Key),
+				  erl_syntax:abstract(Value))
+        || {Key, Value} <- maps:to_list(Map)]);
+map_abstract(Else) -> erl_syntax:abstract(Else).

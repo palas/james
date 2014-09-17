@@ -41,7 +41,7 @@
 
 -include("records.hrl").
 
--export([fun_templates/3, fun_templates/4]).
+-export([fun_templates/3, fun_templates/4, callback_to_map/1]).
 
 fun_templates(Pid, N, Path, ModuleName) ->
     fun_templates(parser_newstruct:get_drai(Pid, N), Path, ModuleName).
@@ -67,7 +67,9 @@ callback_to_map(#callback{} = OriCallback) ->
 			      Param <- OriCallback#callback.params],
 		 return = leave_only_type(OriCallback#callback.return),
 		 this = leave_only_type(OriCallback#callback.this)},
-    record_to_map(record_info(fields, callback), Callback).
+    lists:foldl(fun maps:remove/2,
+		record_to_map(record_info(fields, callback), Callback),
+		[depth, kind, tags]).
 
 leave_only_type(#value{type = Type}) -> Type;
 leave_only_type(Else) -> Else.

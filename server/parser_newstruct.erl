@@ -42,7 +42,13 @@
 -include("records.hrl").
 
 -export([get_drai/2, get_drai/3, gen_dia_to_files/3, gen_dia_to_files/4, list_traces/1,
-	 save_filtered_messages/2, save_filtered_messages/3, drai_to_file/2]).
+	 save_filtered_messages/2, save_filtered_messages/3, drai_to_file/2,
+	 gen_eqc/4]).
+
+gen_eqc(Pid, N, Path, Module) ->
+    Drai = get_drai(Pid, N),
+    template_gen:fun_templates(Drai, Path, Module),
+    eqc_fsm_gen:gen_eqc(Drai, Path, Module).
 
 get_drai(Pid, N) -> get_drai(Pid, N, #config{}).
 get_drai(Pid, N, PreConfig) ->
