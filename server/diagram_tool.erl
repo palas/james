@@ -129,7 +129,8 @@ translate_bool_to_col(false) -> 0.
 
 find_color(is_before, {_, T, A}) -> {true, T, A};
 find_color(is_test, {B, _, A}) -> {B, true, A};
-find_color(is_after, {B, T, _}) -> {B, T, true}.
+find_color(is_after, {B, T, _}) -> {B, T, true};
+find_color(_, {A, B, C}) -> {A, B, C}.
 
 write_opts([]) -> "";
 write_opts([solid]) -> "style=solid";
