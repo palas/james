@@ -52,22 +52,22 @@ extract_arc_info(List, AList, NodeDict) ->
 			    }} <- AList,
 		      dict:is_key(IdStart, NodeDict)],
     ExtNodeDict = lists:foldl(
-		    fun ({X, Y}, Z) -> dict:store(X, Y, Z) end,
+		    fun ({X, Y}, Z) -> dict:append(X, Y, Z) end,
 		    NodeDict, DiamondList),
     [{"0", Id}
      || {Id, #diagram_node{
 		tags = Tags
 	       }} <- List,
 	is_entry_point(Tags)]
-++ [{dict:fetch(IdStart, ExtNodeDict),
-  IdEnd} ||
-    {_, #diagram_arc{
-	   id_start = IdStart,
-	   id_end = IdEnd,
-	   content = http_order
-	  }} <- AList,
-    dict:is_key(IdStart, ExtNodeDict),
-   dict:is_key(IdEnd, NodeDict)].
+	++ [{IdOri,
+	     IdEnd} ||
+	       {_, #diagram_arc{
+		      id_start = IdStart,
+		      id_end = IdEnd,
+		      content = http_order
+		     }} <- AList,
+	       dict:is_key(IdEnd, NodeDict),
+	       IdOri <- dict:fetch(IdStart, ExtNodeDict)].
 
 extract_node_info(List) ->
     NodeList = [{Id, {Method, [Id, template_gen:callback_to_map(Callback),
@@ -86,7 +86,7 @@ extract_node_info(List) ->
 			   http_request = Http}} <- List,
 		   Http =/= no],
     NodeDict = lists:foldl(
-		   fun (X, Y) -> dict:store(X, X, Y) end,
+		   fun (X, Y) -> dict:store(X, [X], Y) end,
 		   dict:new(), [element(1, Z) || Z <- NodeList]),
     NodeListDict = dict:from_list(NodeList),
     {NodeDict, NodeListDict, NodeList}.
