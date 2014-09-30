@@ -32,7 +32,7 @@
 
 #include "james.hpp"
 
-JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *vm, char *options, void*)
+jint JNICALL Agent_OnLoad(JavaVM *vm, char *options, void*)
 {
   jvmtiEnv *jvmti = NULL;
   jint result;
@@ -63,33 +63,13 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *vm, char *options, void*)
   ecall.MethodExit = &MethodExit;
   ecall.ObjectFree = &ObjectFree;
   result = jvmti->SetEventCallbacks(&ecall, (jint)sizeof(ecall));
-  if (result != JNI_OK) {
-    char *errmsg;
-    jvmti->GetErrorName((jvmtiError)result, &errmsg);
-    fprintf(stderr, "Could not set up the callbacks! %s\n", errmsg);
-    return JNI_ERR;
-  }
+  ON_ERROR("Could not set up the callbacks!");
   result = jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_METHOD_ENTRY, NULL);
-  if (result != JNI_OK) {
-    char *errmsg;
-    jvmti->GetErrorName((jvmtiError)result, &errmsg);
-    fprintf(stderr, "Could not turn on the \"method_entry\" notifications! %s\n", errmsg);
-    return JNI_ERR;
-  }
+  ON_ERROR("Could not turn on the \"method_entry\" notifications!");
   result = jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_METHOD_EXIT, NULL);
-  if (result != JNI_OK) {
-    char *errmsg;
-    jvmti->GetErrorName((jvmtiError)result, &errmsg);
-    fprintf(stderr, "Could not turn on the \"method_exit\" notifications! %s\n", errmsg);
-    return JNI_ERR;
-  }
+  ON_ERROR("Could not turn on the \"method_exit\" notifications!");
   result = jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_OBJECT_FREE, NULL);
-  if (result != JNI_OK) {
-    char *errmsg;
-    jvmti->GetErrorName((jvmtiError)result, &errmsg);
-    fprintf(stderr, "Could not turn on the \"object_free\" notifications! %s\n", errmsg);
-    return JNI_ERR;
-  }
+  ON_ERROR("Could not turn on the \"object_free\" notifications!");
   createMonitor(jvmti); 
   createMonitorTrap(jvmti); 
   createMonitorRefs(jvmti); 
@@ -232,3 +212,14 @@ junit_sec cacheIsMethodAnnotated(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID
   }
 }
 
+bool printError(jint result, const char* msg, jvmtiEnv* jvmti) {
+  if (result != JNI_OK) {
+    char* errmsg;
+    fprintf(stderr, "%s", msg);
+    jvmti->GetErrorName((jvmtiError) (result), &errmsg);
+    fprintf(stderr, " %s\n", errmsg);
+    return true;
+  } else {
+    return false;
+  }
+}
