@@ -44,6 +44,7 @@
 #include "sock.hpp"
 #include "refs.hpp"
 #include "cache.hpp"
+#include "utils.hpp"
 #include "httpanalysis.hpp"
 #include <boost/format.hpp>
 

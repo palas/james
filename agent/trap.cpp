@@ -71,7 +71,7 @@ bool trapInstrumentedCallEntry(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thr
     jvmti_env->IsMethodSynthetic(method, &is_synthetic);
     if (threadDepthMap[thread] < 2) {
       traceMethod(0, threadDepthMap[thread], jvmti_env, jni_env, method_name, method_signature, class_signature,
-      isMethodStatic(jvmti_env, jni_env, method), is_native, is_synthetic, thread, method, fake_ret, global_js);
+	  isMethodStatic(jvmti_env, jni_env, method), is_native, is_synthetic, thread, method, fake_ret, global_js);
     }
     threadDepthMap[thread]++;
     result = true;
@@ -96,7 +96,7 @@ bool trapInstrumentedCallExit(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thre
     threadDepthMap[thread]--;
     if (threadDepthMap[thread] < 2) {
       traceMethod(1, threadDepthMap[thread], jvmti_env, jni_env, method_name, method_signature, class_signature,
-                  isMethodStatic(jvmti_env, jni_env, method), is_native, is_synthetic, thread, method, return_value, global_js);
+	  isMethodStatic(jvmti_env, jni_env, method), is_native, is_synthetic, thread, method, return_value, global_js);
     }
     if (threadDepthMap[thread] >= 2) {
       get_info_if_http_method(jvmti_env, jni_env, thread, method_name, method_signature, class_signature);
@@ -158,7 +158,7 @@ jstring objToString(JNIEnv *jni_env, jobject obj)
   return (jstring)jni_env->CallObjectMethod(obj, toString);
 }
 
-int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, char symbol_char, int slot,
+int showLocalVariablesAux(jvmtiEnv *jvmti, JNIEnv *jni_env, jthread thread, char symbol_char, int slot,
     jvalue custom_value, vector<string> *msg)
 {
   jint int_val;
@@ -174,15 +174,8 @@ int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, 
   switch (symbol_char) {
     case 'J':
       if (slot >= 0) {
-	result = jvmti_env->GetLocalLong(thread, 0, slot, &long_val);
-	if (result != JNI_OK) {
-	  char *errmsg;
-	  jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
-          #ifdef DEBUG
-            fprintf(stderr, "Could not get local object! %s\n", errmsg);
-          #endif
-	  return -1; // exit(JNI_ERR);
-	}
+	result = jvmti->GetLocalLong(thread, 0, slot, &long_val);
+	ON_ERROR("Could not get local object!");
       } else {
 	long_val = custom_value.j;
       }
@@ -194,15 +187,8 @@ int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, 
       break;
     case 'F':
       if (slot >= 0) {
-	result = jvmti_env->GetLocalFloat(thread, 0, slot, &float_val);
-	if (result != JNI_OK) {
-	  char *errmsg;
-	  jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
-          #ifdef DEBUG
-            fprintf(stderr, "Could not get local object! %s\n", errmsg);
-          #endif
-	  return -1; // exit(JNI_ERR);
-	}
+	result = jvmti->GetLocalFloat(thread, 0, slot, &float_val);
+	ON_ERROR_DBG("Could not get local object!");
       } else {
 	float_val = custom_value.f;
       }
@@ -213,15 +199,8 @@ int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, 
       break;
     case 'D':
       if (slot >= 0) {
-	result = jvmti_env->GetLocalDouble(thread, 0, slot, &double_val);
-	if (result != JNI_OK) {
-	  char *errmsg;
-	  jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
-          #ifdef DEBUG
-            fprintf(stderr, "Could not get local object! %s\n", errmsg);
-          #endif
-	  return -1; // exit(JNI_ERR);
-	}
+	result = jvmti->GetLocalDouble(thread, 0, slot, &double_val);
+	ON_ERROR_DBG("Could not get local object!");
       } else {
 	double_val = custom_value.d;
       }
@@ -234,15 +213,8 @@ int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, 
     case '[':
     case 'L':
       if (slot >= 0) {
-	result = jvmti_env->GetLocalObject(thread, 0, slot, &val_val.l);
-	if (result != JNI_OK) {
-	  char *errmsg;
-	  jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
-          #ifdef DEBUG
-            fprintf(stderr, "Could not get local object! %s\n", errmsg);
-          #endif
-	  return -1; // exit(JNI_ERR);
-	}
+	result = jvmti->GetLocalObject(thread, 0, slot, &val_val.l);
+	ON_ERROR_DBG("Could not get local object!");
       } else {
 	val_val.l = custom_value.l;
       }
@@ -272,9 +244,9 @@ int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, 
 	  jobject obj = jni_env->CallObjectMethod(val_val.l, method);
 	  string_val = (jstring)obj;
 	} else {
-	  if (hasRef(jvmti_env, val_val.l)) {
+	  if (hasRef(jvmti, val_val.l)) {
 	    msg->push_back("OBJECT_ID_TOSTR");
-	    ssmsg << getRef(jvmti_env, val_val.l);
+	    ssmsg << getRef(jvmti, val_val.l);
 	    msg->push_back(ssmsg.str());
 	    ssmsg.str(std::string());
 	  } else {
@@ -298,7 +270,7 @@ int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, 
 	    } else { // End of exception
 	      msg->push_back("OBJECT_NEWID_TOSTR");
 	    }
-	    ssmsg << setNewRef(jvmti_env, val_val.l);
+	    ssmsg << setNewRef(jvmti, val_val.l);
 	    msg->push_back(ssmsg.str());
 	    ssmsg.str(std::string());
 	  }
@@ -316,15 +288,8 @@ int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, 
       break;
     case 'Z':
       if (slot >= 0) {
-	result = jvmti_env->GetLocalInt(thread, 0, slot, &val_val.i);
-	if (result != JNI_OK) {
-	  char *errmsg;
-	  jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
-          #ifdef DEBUG
-            fprintf(stderr, "Could not get local object! %s\n", errmsg);
-          #endif
-	  return -1; // exit(JNI_ERR);
-	}
+	result = jvmti->GetLocalInt(thread, 0, slot, &val_val.i);
+	ON_ERROR_DBG("Could not get local object!");
       } else {
 	val_val.z = custom_value.z;
       }
@@ -335,15 +300,8 @@ int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, 
       break;
     case 'B':
       if (slot >= 0) {
-	result = jvmti_env->GetLocalInt(thread, 0, slot, &val_val.i);
-	if (result != JNI_OK) {
-	  char *errmsg;
-	  jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
-          #ifdef DEBUG
-	    fprintf(stderr, "Could not get local object! %s\n", errmsg);
-          #endif
-	  return -1; // exit(JNI_ERR);
-	}
+	result = jvmti->GetLocalInt(thread, 0, slot, &val_val.i);
+	ON_ERROR_DBG("Could not get local object!");
       } else {
 	val_val.b = custom_value.b;
       }
@@ -355,15 +313,8 @@ int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, 
       break;
     case 'C':
       if (slot >= 0) {
-	result = jvmti_env->GetLocalInt(thread, 0, slot, &val_val.i);
-	if (result != JNI_OK) {
-	  char *errmsg;
-	  jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
-          #ifdef DEBUG
-            fprintf(stderr, "Could not get local object! %s\n", errmsg);
-          #endif
-	  return -1; // exit(JNI_ERR);
-	}
+	result = jvmti->GetLocalInt(thread, 0, slot, &val_val.i);
+	ON_ERROR_DBG("Could not get local object!");
       } else {
 	val_val.c = custom_value.c;
       }
@@ -375,15 +326,8 @@ int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, 
       break;
     case 'S':
       if (slot >= 0) {
-	result = jvmti_env->GetLocalInt(thread, 0, slot, &val_val.i);
-	if (result != JNI_OK) {
-	  char *errmsg;
-	  jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
-          #ifdef DEBUG
-            fprintf(stderr, "Could not get local object! %s\n", errmsg);
-          #endif
-	  return -1; // exit(JNI_ERR);
-	}
+	result = jvmti->GetLocalInt(thread, 0, slot, &val_val.i);
+	ON_ERROR_DBG("Could not get local object!");
       } else {
 	val_val.s = custom_value.s;
       }
@@ -394,15 +338,8 @@ int showLocalVariablesAux(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, 
       break;
     case 'I':
       if (slot >= 0) {
-	result = jvmti_env->GetLocalInt(thread, 0, slot, &int_val);
-	if (result != JNI_OK) {
-	  char *errmsg;
-	  jvmti_env->GetErrorName((jvmtiError)result, &errmsg);
-          #ifdef DEBUG
-            fprintf(stderr, "Could not get local object! %s\n", errmsg);
-          #endif
-	  return -1; // exit(JNI_ERR);
-	}
+	result = jvmti->GetLocalInt(thread, 0, slot, &int_val);
+	ON_ERROR_DBG("Could not get local object!");
       } else {
 	int_val = custom_value.i;
       }
@@ -431,9 +368,9 @@ bool showLocalVariables(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID method, 
     temp = showLocalVariablesAux(jvmti_env, jni_env, thread, simp_sig[i],
 	slot + (isStatic?0:1), return_value, msg);
     if ((-1) == temp) {
-      #ifdef DEBUG
-        fprintf(stderr, "a (%d) %s, %s - %s\n", slot, (isStatic?"static":"dynamic"), (isNew?"new":"not_new"), simp_sig);
-      #endif
+#ifdef DEBUG
+      fprintf(stderr, "a (%d) %s, %s - %s\n", slot, (isStatic?"static":"dynamic"), (isNew?"new":"not_new"), simp_sig);
+#endif
       return false;
     };
     slot += temp;
@@ -446,9 +383,9 @@ bool showLocalVariables(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID method, 
       jvalue value_val;
       jvmti_env->GetLocalInstance(thread, 0, &(value_val.l));
       if ((-1) == showLocalVariablesAux(jvmti_env, jni_env, thread, 'L', -1, value_val, msg)) {
-        #ifdef DEBUG
-          fprintf(stderr, "b %d - %s\n", (isStatic?0:1), simp_sig);
-        #endif
+#ifdef DEBUG
+	fprintf(stderr, "b %d - %s\n", (isStatic?0:1), simp_sig);
+#endif
 	return false;
       };
     } else if (simp_sig[i] == 'V') {
@@ -456,9 +393,9 @@ bool showLocalVariables(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID method, 
     } else {
       msg->push_back("RETURN_VALUE");
       if ((-1) == showLocalVariablesAux(jvmti_env, jni_env, thread, simp_sig[i], -1, return_value, msg)) {
-        #ifdef DEBUG
-          fprintf(stderr, "c %d - %s\n", (isStatic?0:1), simp_sig);
-        #endif
+#ifdef DEBUG
+	fprintf(stderr, "c %d - %s\n", (isStatic?0:1), simp_sig);
+#endif
 	return false;
       };
     }
@@ -469,9 +406,9 @@ bool showLocalVariables(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID method, 
       jvalue value_val;
       jvmti_env->GetLocalInstance(thread, 0, &(value_val.l));
       if ((-1) == showLocalVariablesAux(jvmti_env, jni_env, thread, 'L', -1, value_val, msg)) {
-        #ifdef DEBUG
-          fprintf(stderr, "d %d - %s\n", (isStatic?0:1), simp_sig);
-        #endif
+#ifdef DEBUG
+	fprintf(stderr, "d %d - %s\n", (isStatic?0:1), simp_sig);
+#endif
 	return false;
       };
     } else {
@@ -504,21 +441,21 @@ void traceMethod(int type, int depth, jvmtiEnv *jvmti_env, JNIEnv* jni_env,
     bool is_static, bool is_native, bool is_synthetic, jthread thread,
     jmethodID method, jvalue return_value, junit_sec js)
 {
-  #ifdef DEBUG
-    for (int i = 0; i < depth; i++) printf("  ");
-  #endif
+#ifdef DEBUG
+  for (int i = 0; i < depth; i++) printf("  ");
+#endif
   if ((depth >= 0) && (depth <= 1)) {
     switch (type) {
       case 0:
-        #ifdef DEBUG
-          printf(">>> Entering method %s %s from class %s.\n", method_name, method_signature, class_signature);
-        #endif
+#ifdef DEBUG
+	printf(">>> Entering method %s %s from class %s.\n", method_name, method_signature, class_signature);
+#endif
 	break;
       case 1:
-        #ifdef DEBUG
-          printf("<<< Exiting method %s %s from class %s.\n", method_name, method_signature, class_signature);
-        #endif
-        break;
+#ifdef DEBUG
+	printf("<<< Exiting method %s %s from class %s.\n", method_name, method_signature, class_signature);
+#endif
+	break;
     }
   }
   fflush(stdout);
@@ -549,15 +486,15 @@ void traceMethod(int type, int depth, jvmtiEnv *jvmti_env, JNIEnv* jni_env,
       return_value, js, &msg);
   msg.push_back("START_VARS");
   if (!showLocalVariables(jvmti_env, jni_env, method, thread, simp_sig,
-           return_value, type, is_static, !strcmp("<init>", method_name), &msg)) {
-    #ifdef DEBUG
-      fprintf(stderr, "IS_NATIVE: %s\n", (is_native?"TRUE":"FALSE"));
-      fprintf(stderr, "IS_SYNTHETIC: %s\n", (is_synthetic?"TRUE":"FALSE"));
-      fprintf(stderr, "EVENT_TYPE: %s\n", (type?"EXIT":"ENTRY"));
-      fprintf(stderr, "CLASS_SIGNATURE: %s\n", class_signature);
-      fprintf(stderr, "METHOD_NAME: %s\n", method_name);
-      fprintf(stderr, "SIG: %s\n", method_signature);
-    #endif
+	return_value, type, is_static, !strcmp("<init>", method_name), &msg)) {
+#ifdef DEBUG
+    fprintf(stderr, "IS_NATIVE: %s\n", (is_native?"TRUE":"FALSE"));
+    fprintf(stderr, "IS_SYNTHETIC: %s\n", (is_synthetic?"TRUE":"FALSE"));
+    fprintf(stderr, "EVENT_TYPE: %s\n", (type?"EXIT":"ENTRY"));
+    fprintf(stderr, "CLASS_SIGNATURE: %s\n", class_signature);
+    fprintf(stderr, "METHOD_NAME: %s\n", method_name);
+    fprintf(stderr, "SIG: %s\n", method_signature);
+#endif
     free(simp_sig);
     return;
   }

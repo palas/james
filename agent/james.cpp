@@ -211,15 +211,3 @@ junit_sec cacheIsMethodAnnotated(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID
     return isMethodAnnotated(jvmti_env, jni_env, method, class_instance, class_signature);
   }
 }
-
-bool printError(jint result, const char* msg, jvmtiEnv* jvmti) {
-  if (result != JNI_OK) {
-    char* errmsg;
-    fprintf(stderr, "%s", msg);
-    jvmti->GetErrorName((jvmtiError) (result), &errmsg);
-    fprintf(stderr, " %s\n", errmsg);
-    return true;
-  } else {
-    return false;
-  }
-}

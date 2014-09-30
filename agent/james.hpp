@@ -40,8 +40,6 @@
 #include "trap.hpp"
 #include "sock.hpp"
 
-#define ON_ERROR(x) if (printError(result, (x), jvmti)) { return JNI_ERR; }
-
 void JNICALL MethodEntry(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread, jmethodID method);
 void JNICALL MethodExit(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread, jmethodID method,
     jboolean was_popped_by_exception, jvalue return_value);
@@ -49,7 +47,6 @@ void JNICALL ObjectFree(jvmtiEnv *jvmti_env, jlong tag);
 void showLocalVariables(jvmtiEnv *jvmti_env, jmethodID method);
 junit_sec cacheIsMethodAnnotated(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jmethodID method,
     jclass class_instance, char *class_signature);
-bool printError(jint result, const char* msg, jvmtiEnv* jvmti);
 
 #endif
 
