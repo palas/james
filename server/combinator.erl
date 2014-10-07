@@ -74,18 +74,21 @@ combinate_aux(Island,Config) ->
 			 dia_utils:remove_duplicated_arcs(
 			   combinate_aux2(
 			     dia_utils:generate_subgraphs(Island),
-			     Config)))))))))).
+			     Config,0,Config#config.max_iterations)))))))))).
 
 op(Fun, true, Input) -> Fun(Input);
 op(_, false, Input) -> Input.
 
-combinate_aux2(Island,Config) ->
+combinate_aux2(Island,_,MaxIterations,MaxIterations) -> Island;
+combinate_aux2(Island,Config,Iteration,MaxIterations) ->
     case get_best_path_pair(Config#config.big_k_value, Island, false) of
 	none -> case get_best_path_pair(Config#config.small_k_value, Island, true) of
 		    none -> Island;
-		    {Path1, Path2} -> combinate_aux2(path_utils:join_path_pair(Path1, Path2, Island),Config)
+		    {Path1, Path2} -> combinate_aux2(path_utils:join_path_pair(Path1, Path2, Island),Config,
+						     Iteration + 1,MaxIterations)
 		end;
-	{Path1, Path2} -> combinate_aux2(path_utils:join_path_pair(Path1, Path2, Island),Config)
+	{Path1, Path2} -> combinate_aux2(path_utils:join_path_pair(Path1, Path2, Island),Config,
+					 Iteration + 1,MaxIterations)
     end.
 
 get_best_path_pair(N,Island,OnlyCommon) ->
