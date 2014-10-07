@@ -104,7 +104,7 @@ gen_dia_to_files_dbg(Pid,N,File) -> gen_dia_to_files_dbg(Pid, N, File, #config{}
 gen_dia_to_files_dbg(Pid,N,File,#config{max_iterations = Num} = Config) ->
     try begin
 	    gen_dia_to_files(Pid, N, File, #config{max_iterations = count_iterations}),
-	    exit(could_not_cound_iterations)
+	    exit(could_not_count_iterations)
 	end
     catch
 	throw:({count_iterations, Max}) ->

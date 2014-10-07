@@ -81,15 +81,24 @@ op(_, false, Input) -> Input.
 
 combinate_aux2(Island,_,MaxIterations,MaxIterations) -> Island;
 combinate_aux2(Island,Config,Iteration,MaxIterations) ->
+    gest_best_path_pair_and_do(Island, Config, Iteration, MaxIterations, fun combinate_aux3/5).
+
+combinate_aux3(Island, Config, Iteration, _, none) -> catch_count_iterations(Island, Iteration, Config);
+combinate_aux3(Island, Config, Iteration, MaxIterations, {Path1, Path2}) ->
+    combinate_aux2(path_utils:join_path_pair(Path1, Path2, Island),Config,
+                   Iteration + 1,MaxIterations).
+
+gest_best_path_pair_and_do(Island, Config, Iteration, MaxIterations, F) ->
     case get_best_path_pair(Config#config.big_k_value, Island, false) of
 	none -> case get_best_path_pair(Config#config.small_k_value, Island, true) of
-		    none -> catch_count_iterations(Island, Iteration, Config);
-		    {Path1, Path2} -> combinate_aux2(path_utils:join_path_pair(Path1, Path2, Island),Config,
-						     Iteration + 1,MaxIterations)
+		    none -> F(Island, Config, Iteration, MaxIterations, none);
+		    {Path1, Path2} -> F(Island, Config, Iteration,
+					MaxIterations, {Path1, Path2})
 		end;
-	{Path1, Path2} -> combinate_aux2(path_utils:join_path_pair(Path1, Path2, Island),Config,
-					 Iteration + 1,MaxIterations)
+	{Path1, Path2} -> F(Island, Config, Iteration,
+			    MaxIterations, {Path1, Path2})
     end.
+
 
 catch_count_iterations(_Island, Iteration, #config{max_iterations = count_iterations}) ->
 	throw({count_iterations, Iteration});
