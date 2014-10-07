@@ -43,7 +43,7 @@
 
 -export([get_drai/2, get_drai/3, gen_dia_to_files/3, gen_dia_to_files/4, list_traces/1,
 	 save_filtered_messages/2, save_filtered_messages/3, drai_to_file/2,
-	 gen_eqc/4]).
+	 gen_eqc/4, gen_dia_to_files_dbg/3, gen_dia_to_files_dbg/4]).
 
 gen_eqc(Pid, N, Path, Module) ->
     Drai = get_drai(Pid, N),
@@ -99,6 +99,31 @@ gen_dia_to_files(Pid,N,File) -> gen_dia_to_files(Pid, N, File, #config{}).
 
 gen_dia_to_files(Pid,N,File,Config) ->
     diagram_to_files(File,fetch_traces(Pid, N),Config).
+
+gen_dia_to_files_dbg(Pid,N,File) -> gen_dia_to_files_dbg(Pid, N, File, #config{}).
+gen_dia_to_files_dbg(Pid,N,File,#config{max_iterations = Num} = Config) ->
+    try begin
+	    gen_dia_to_files(Pid, N, File, #config{max_iterations = count_iterations}),
+	    exit(could_not_cound_iterations)
+	end
+    catch
+	throw:({count_iterations, Max}) ->
+	    gen_dia_to_files_dbg_aux(Pid, N, File, Config, Num, Max)
+    end.
+gen_dia_to_files_dbg_aux(Pid,N,File,Config,Num,Max) when is_integer(Num) andalso Num < Max ->
+    gen_dia_to_files_dbg_aux2(Pid,N,File,Config,1,Num);
+gen_dia_to_files_dbg_aux(Pid,N,File,Config,_Num,Max) ->
+    gen_dia_to_files_dbg_aux2(Pid,N,File,Config,1,Max).
+
+gen_dia_to_files_dbg_aux2(_Pid,_N,_File,_Config,Max,Max) -> ok;
+gen_dia_to_files_dbg_aux2(Pid,N,File,Config,Num,Max) when is_list(File) ->
+    Path = (File ++ integer_to_list(Num)),
+    ok = file:make_dir(Path),
+    gen_dia_to_files(Pid,N,Path ++ "/",Config#config{max_iterations = Num}),
+    gen_dia_to_files_dbg_aux2(Pid,N,File,Config,Num + 1,Max);
+gen_dia_to_files_dbg_aux2(Pid,N,File,Config,Num,Max) when is_atom(File) ->
+    gen_dia_to_files_dbg_aux2(Pid,N,atom_to_list(File),Config,Num,Max).
+
 
 fetch_traces(Pid, N) -> element(2, hd(get_traces(Pid, [N]))).
 

@@ -83,13 +83,17 @@ combinate_aux2(Island,_,MaxIterations,MaxIterations) -> Island;
 combinate_aux2(Island,Config,Iteration,MaxIterations) ->
     case get_best_path_pair(Config#config.big_k_value, Island, false) of
 	none -> case get_best_path_pair(Config#config.small_k_value, Island, true) of
-		    none -> Island;
+		    none -> catch_count_iterations(Island, Iteration, Config);
 		    {Path1, Path2} -> combinate_aux2(path_utils:join_path_pair(Path1, Path2, Island),Config,
 						     Iteration + 1,MaxIterations)
 		end;
 	{Path1, Path2} -> combinate_aux2(path_utils:join_path_pair(Path1, Path2, Island),Config,
 					 Iteration + 1,MaxIterations)
     end.
+
+catch_count_iterations(_Island, Iteration, #config{max_iterations = count_iterations}) ->
+	throw({count_iterations, Iteration});
+catch_count_iterations(Island, _, _) -> Island.
 
 get_best_path_pair(N,Island,OnlyCommon) ->
     NormalNodeList = dia_utils:get_normal_nodes(Island),
