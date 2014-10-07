@@ -110,12 +110,24 @@ comma_if_non_empty([]) -> ", ";
 comma_if_non_empty(_) -> " ".
 
 add_tags_to_opts(Opts, Tags) ->
+    NewOpts = add_tags_to_opts1(Opts, Tags),
+    add_tags_to_opts2(NewOpts, Tags).
+
+add_tags_to_opts1(Opts, Tags) ->
     case lists:foldl(fun find_color/2, {false, false, false}, Tags) of
 	{true, true, true} -> [{color, 0, 0, 0}|Opts];
 	{false, false, false} -> [{color, 128, 128, 128}|Opts];
 	{G, B, R} -> [{color, translate_bool_to_col(R),
 		       translate_bool_to_col(G),
 		       translate_bool_to_col(B)}|Opts]
+    end.
+
+add_tags_to_opts2(Opts, Tags) ->
+    case lists:foldl(fun find_path_highlight/2, none, Tags) of
+	none -> Opts;
+	dest -> Opts ++ [{color, 0, 255, 0}];
+	ori -> Opts ++ [{color, 255, 0, 0}];
+	both -> Opts ++ [{color, 255, 255, 0}]
     end.
 
 add_class_to_opts(Opts, Class) ->
@@ -131,6 +143,12 @@ find_color(is_before, {_, T, A}) -> {true, T, A};
 find_color(is_test, {B, _, A}) -> {B, true, A};
 find_color(is_after, {B, T, _}) -> {B, T, true};
 find_color(_, {A, B, C}) -> {A, B, C}.
+
+find_path_highlight(dest_path, none) -> dest;
+find_path_highlight(ori_path, none) -> ori;
+find_path_highlight(ori_path, dest_path) -> both;
+find_path_highlight(dest_path, ori_path) -> both;
+find_path_highlight(_, T) -> T.
 
 write_opts([]) -> "";
 write_opts([solid]) -> "style=solid";

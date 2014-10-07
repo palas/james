@@ -114,10 +114,20 @@ highlight_last_path_pair(Island, Config) ->
       Island, Config,
       fun (PP) ->
 	      case PP of
-		  {_Path1, _Path2} -> Island;
+		  {#path{node_ids = Path1},
+		   #path{node_ids = Path2}} ->
+		      tag_nodes(dest_path, lists:concat(Path1),
+			tag_nodes(ori_path, lists:concat(Path2), Island));
 		  none -> Island
 	      end
       end).
+
+tag_nodes(_Tag, [], Island) -> Island;
+tag_nodes(Tag, [NodeId|RestNodes], #drai{dnodes = Nodes} = Island) ->
+    OriNode = dict:fetch(NodeId, Nodes),
+    NewNode = OriNode#diagram_node{tags = [Tag|OriNode#diagram_node.tags]},
+    tag_nodes(Tag, RestNodes,
+	      Island#drai{dnodes = dict:store(NodeId, NewNode, Nodes)}).
 
 get_best_path_pair(N,Island,OnlyCommon) ->
     NormalNodeList = dia_utils:get_normal_nodes(Island),
