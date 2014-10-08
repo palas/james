@@ -69,11 +69,20 @@ advance_path(#path{node_ids = [List|Rest],
 								 Island)
 					      end]
 				      || NodeId <- List]),
-    NewNodeTuples = lists:usort(TempNewNodeTuples),
+    NewNodeTuples = nub(TempNewNodeTuples),
     Path#path{cur_list_nodes = NewNodeTuples,
 	      node_ids = [dia_utils:get_nod_ids(element(2, lists:unzip(NewNodeTuples))),
 			  List|Rest],
 	      depth = N + 1}.
+
+nub(List) ->
+    nub_aux(List, sets:new()).
+nub_aux([H|T], Set) ->
+    case sets:is_element(H, Set) of
+	true -> nub_aux(T, Set);
+	false -> [H|nub_aux(T, sets:add_element(H, Set))]
+    end;
+nub_aux([], _) -> [].
 
 
 % Effectively joins all the elements in both "equivalent"
