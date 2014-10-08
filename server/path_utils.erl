@@ -60,11 +60,14 @@ advance_path(#path{node_ids = [List|Rest],
 					    upwards -> dia_utils:expand_tran_upwards(Tran, Island);
 					    downwards -> dia_utils:expand_tran_downwards(Tran, Island)
 					end}
-				       || Tran <- dia_utils:sort_trans(
-						    case Dir of
-							upwards -> dia_utils:expand_node_id_to_trans_up(NodeId, Island);
-							downwards -> dia_utils:expand_node_id_to_trans_down(NodeId, Island)
-						    end)]
+				       || Tran <-
+					      case Dir of
+						  upwards -> dia_utils:sort_trans(
+							       dia_utils:expand_node_id_to_trans_up(NodeId, Island));
+						  downwards -> dia_utils:sort_trans_desc(
+								 dia_utils:expand_node_id_to_trans_down(NodeId, Island),
+								 Island)
+					      end]
 				      || NodeId <- List]),
     NewNodeTuples = lists:usort(TempNewNodeTuples),
     Path#path{cur_list_nodes = NewNodeTuples,

@@ -47,10 +47,10 @@
 	 expand_node_id_to_trans_up/2, expand_node_id_to_trans_down/2,
 	 expand_tran_upwards/2, expand_tran_downwards/2, get_nod_ids/1,
 	 get_node_prop/1, get_tran_prop/1, join_node_pairs/3, sort_trans/1,
-	 collapse_integers/1, highlight_loops/1, remove_elliptic_nodes/1,
-	 expand_nodes_down/2, expand_nodes_up/2, get_node_by_id/2, set_node/2,
-	 set_arc/2, remove_node/2, move_returns/3, get_arcs_up/2,
-	 generate_subgraphs/1]).
+	 sort_trans_desc/2, collapse_integers/1, highlight_loops/1,
+	 remove_elliptic_nodes/1, expand_nodes_down/2, expand_nodes_up/2,
+	 get_node_by_id/2, set_node/2, set_arc/2, remove_node/2,
+	 move_returns/3, get_arcs_up/2, generate_subgraphs/1]).
 
 %% Low level diagram record interface functions
 %% ============================================
@@ -140,6 +140,12 @@ dup_arc_fold(_, #diagram_arc{
 get_tran_prop(#diagram_arc{properties = Prop,
 			   content = Content}) ->
     {Prop, Content}.
+
+get_tran_prop_and_dmn(#diagram_arc{id_end = DestId,
+				   properties = Prop,
+				   content = Content},
+		      #drai{dnodes = DNodes}) ->
+    {Prop, get_node_prop(dict:fetch(DestId, DNodes)), Content}.
 
 get_node_prop(#diagram_node{label = Label, cluster = Cluster, class = Class}) -> {Label, Cluster, Class}.
 
@@ -392,6 +398,10 @@ expand_tran_downwards(Tran, #drai{dnodes = DNodes}) ->
 sort_trans(TranList) ->
     utils:usort_using(fun get_tran_prop/1, TranList).
 
+% It is like sort_trans/1 but considers the method name of the dest node
+sort_trans_desc(TranList, Island) ->
+    utils:usort_using(fun (X) -> get_tran_prop_and_dmn(X, Island) end,
+		      TranList).
 
 % Takes a NodeId and extracts all the upward arcs as records
 expand_node_id_to_trans_up(NodeId, Drai) ->
