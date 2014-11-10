@@ -32,7 +32,7 @@ LIBS="-lboost_system -lpthread"
 AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <boost/asio.hpp>], [])],
                [AC_MSG_RESULT([yes])],
                [AC_MSG_RESULT([error])]
-	       [AC_MSG_FAILURE([The boost librares are required. Try installing libboost-dev package.])])
+	       [AC_MSG_FAILURE([The boost librares are required. Try installing libboost-system-dev package.])])
 
 # Checks for header files.
 AC_CHECK_HEADERS([string.h])

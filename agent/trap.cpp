@@ -476,6 +476,7 @@ void traceMethod(int type, int depth, jvmtiEnv *jvmti_env, JNIEnv* jni_env,
   if (is_static) msg.push_back("static");
   else msg.push_back("dynamic");
   msg.push_back(method_name);
+  msg.push_back(method_signature);
   msg.push_back(class_signature);
   msg.push_back((js.is_before)?"TRUE":"FALSE");
   msg.push_back((js.is_test)?"TRUE":"FALSE");

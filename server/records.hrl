@@ -38,7 +38,7 @@
 %%% POSSIBILITY OF SUCH DAMAGE.
 %%%-------------------------------------------------------------------
 -record(trace, {pid, traces}).
--record(callback, {kind, depth, is_dynamic, method_name, class_signature, params, return, http_request = no, tags, this}).
+-record(callback, {kind, depth, is_dynamic, method_name, method_signature, class_signature, params, return, http_request = no, tags, this}).
 -record(free_event, {tag}).
 -record(value, {type, value, obj_info = none}).
 -record(obj_info, {first_time, identifier}).

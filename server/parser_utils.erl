@@ -61,7 +61,7 @@ read_callbacks([]) -> [];
 read_callbacks(["START_FREE_EVENT"|Rest]) ->
     {Value, ["END_FREE_EVENT"|NewRest]} = read_value(Rest),
     [#free_event{tag = Value#value.value}|read_callbacks(NewRest)];
-read_callbacks(["START_CALLBACK", TypeT, DepthT, DynamicT, MethodName, ClassSignature,
+read_callbacks(["START_CALLBACK", TypeT, DepthT, DynamicT, MethodName, MethodSignature, ClassSignature,
 		IsBefore, IsTest, IsAfter, HttpMethod, HttpURL|Rest]) ->
     Type = case TypeT of
 	       "ENTER_METHOD" -> enter_method;
@@ -74,7 +74,8 @@ read_callbacks(["START_CALLBACK", TypeT, DepthT, DynamicT, MethodName, ClassSign
 		end,
     {Params, Return, This, ["END_CALLBACK"|NewRest]} = read_params(Rest),
     [#callback{kind = Type, depth = Depth, is_dynamic = IsDynamic, method_name = MethodName,
-	       class_signature = ClassSignature, params = Params, return = Return,
+	       method_signature = MethodSignature, class_signature = ClassSignature,
+	       params = Params, return = Return,
 	       tags = [is_before || "TRUE" =:= IsBefore] ++
 		   [is_test || "TRUE" =:= IsTest] ++
 		   [is_after || "TRUE" =:= IsAfter],
