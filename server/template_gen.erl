@@ -41,7 +41,7 @@
 
 -include("records.hrl").
 
--export([fun_templates/3, fun_templates/4, callback_to_map/1]).
+-export([fun_templates/3, fun_templates/4, callback_to_map/1, value_to_map/1]).
 
 fun_templates(Pid, N, Path, ModuleName) ->
     fun_templates(parser_newstruct:get_drai(Pid, N), Path, ModuleName).

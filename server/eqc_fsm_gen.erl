@@ -11,7 +11,9 @@
 -include("visualize.hrl").
 
 gen_eqc(Pid, N, Path, ModuleName) ->
-    gen_eqc(parser_newstruct:get_drai(Pid, N), Path, ModuleName).
+    Drai = parser_newstruct:get_drai(Pid, N),
+    gen_eqc(Drai, Path, ModuleName),
+    dep_fsm_gen:gen_dep(Drai, Path, ModuleName).
 
 gen_eqc(Drai, Path, ModuleName) ->
     List = dict:to_list(Drai#drai.dnodes),
@@ -70,19 +72,11 @@ extract_arc_info(List, AList, NodeDict) ->
 	       IdOri <- dict:fetch(IdStart, ExtNodeDict)].
 
 extract_node_info(List) ->
-    NodeList = [{Id, {Method, [Id, template_gen:callback_to_map(Callback),
-			       case This of
-				   static -> Params;
-				   new -> Params;
-				   undefined -> Params;
-				   This -> [This|Params]
-			       end]}} ||
+    NodeList = [{Id, {Method, [Id]}} ||
 		   {Id, #diagram_node{
 			   content =  #callback{
 					 method_name = Method,
-					 params = Params,
-					 this = This,
-					 depth = 1} = Callback,
+					 depth = 1},
 			   http_request = Http}} <- List,
 		   Http =/= no],
     NodeDict = lists:foldl(
@@ -130,14 +124,14 @@ trailer(Module,Calls) ->
                            erl_syntax:tuple([erl_syntax:atom(call),
 					     erl_syntax:variable("_"),
 					     erl_syntax:abstract(Fun),
-					     erl_syntax:list([erl_syntax:variable("_") || _<-lists:seq(1,Args + 1)])])],[],
+					     erl_syntax:list([erl_syntax:variable("_") || _<-lists:seq(1,Args + 2)])])],[],
                           [erl_syntax:atom(true) ]) ||
         {_Mod,Fun,Args} <- Calls ])] ++
   % initial_state_data
   [ erl_syntax:function(
       erl_syntax:atom(initial_state_data),
       [ erl_syntax:clause([],[],
-                          [erl_syntax:list([]) ])])]++
+                          [erl_syntax:atom(empty)])])]++
   % next_state_data
   [ erl_syntax:function(
       erl_syntax:atom(next_state_data),
@@ -146,7 +140,7 @@ trailer(Module,Calls) ->
                            erl_syntax:tuple([erl_syntax:atom(call),
                                             erl_syntax:variable("_"),
                                             erl_syntax:abstract(Fun),
-                                            erl_syntax:list([erl_syntax:variable("_") || _<-lists:seq(1,Args + 1)])])],[],
+                                            erl_syntax:list([erl_syntax:variable("_") || _<-lists:seq(1,Args + 2)])])],[],
                           [erl_syntax:variable("V") ])  || {_Mod,Fun,Args} <- Calls ])]++
   % postconditions
   [ erl_syntax:function(
@@ -164,7 +158,7 @@ trailer(Module,Calls) ->
                            erl_syntax:tuple([erl_syntax:atom(call),
                                             erl_syntax:variable("_"),
                                             erl_syntax:abstract(Fun),
-                                            erl_syntax:list([erl_syntax:variable("_") || _<-lists:seq(1,Args + 1)])]),
+                                            erl_syntax:list([erl_syntax:variable("_") || _<-lists:seq(1,Args + 2)])]),
                            erl_syntax:variable("R")],[],
                           [erl_syntax:case_expr(
                              erl_syntax:variable("R"),[
@@ -198,7 +192,7 @@ trailer(Module,Calls) ->
   [] ++
   % local functions
   [ begin
-      Vars = [erl_syntax:variable(lists:concat(["X",I])) || I<-lists:seq(1,Arity + 1)],
+      Vars = [erl_syntax:variable(lists:concat(["X",I])) || I<-lists:seq(1,Arity + 2)],
       erl_syntax:function(erl_syntax:atom(Fun),
                           [ erl_syntax:clause(Vars,[],
                                               [erl_syntax:catch_expr(
@@ -250,11 +244,15 @@ trans_gen([{From,Transitions}|Rest]) ->
                       erl_syntax:list(mergeargs(cart(Argss))),
                     [{To,eqccall(Mod,Fun,MergeArgs)}|Trs];
                    ({{To,Mod,Fun},[Args]},Trs) ->
-                    [{To,eqccall(Mod,Fun,add_state(map_abstract(Args)))}|Trs]
+                    [{To,eqccall(Mod,Fun,add_state_and_gen_call(Mod, erl_syntax:abstract(Args)))}|Trs]
                 end,[],MergedCalls),
   [mkfunc(From,Trans)|trans_gen(Rest)].
 
-add_state(List) -> erl_syntax:list(erl_syntax:list_elements(List) ++ [erl_syntax:variable("State")]).
+add_state_and_gen_call(Mod, EList) ->
+    ([NodeNum|_] = List) = erl_syntax:list_elements(EList),
+    erl_syntax:list([erl_syntax:variable("State")|List]
+		    ++ [erl_syntax:application(erl_syntax:atom(atom_to_list(Mod) ++ "_dep"),
+					       erl_syntax:atom(args_for), [NodeNum])]).
 
 cart([]) ->
   [];
@@ -339,12 +337,3 @@ pp(SUT,[{{set,_V,Call},Return}|Rest]) ->
      true -> io:format(".\n\n")
   end.
 
-
-map_abstract(List) when is_list(List) ->
-    erl_syntax:list(lists:map(fun map_abstract/1, List));
-map_abstract(Map) when is_map(Map) ->
-    erl_syntax:map_expr(
-      [erl_syntax:map_field_assoc(erl_syntax:abstract(Key),
-				  erl_syntax:abstract(Value))
-        || {Key, Value} <- maps:to_list(Map)]);
-map_abstract(Else) -> erl_syntax:abstract(Else).
