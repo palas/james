@@ -3,4 +3,4 @@
 	url = https://github.com/palas/freq_server.git
 [submodule "example/freq_server_test"]
 	path = example/freq_server_test
-	url = git@github.com:palas/freq_server_test_ma.git
+	url = https://github.com/palas/freq_server_test_ma.git
