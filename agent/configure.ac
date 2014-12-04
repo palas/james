@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.69])
+AC_PREREQ([2.68])
 AC_INIT([james], [0.0.1], [P.Lamela-Seijas@kent.ac.uk])
 AC_CONFIG_SRCDIR([james.cpp])
 AC_CONFIG_HEADERS([config.h])
@@ -38,7 +38,6 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <boost/asio.hpp>], [])],
 AC_CHECK_HEADERS([string.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
-AC_CHECK_HEADER_STDBOOL
 AC_TYPE_SIZE_T
 
 # Checks for library functions.
