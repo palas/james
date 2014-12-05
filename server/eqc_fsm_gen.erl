@@ -77,8 +77,9 @@ extract_node_info(List) ->
 			   content =  #callback{
 					 method_name = Method,
 					 depth = 1},
-			   http_request = Http}} <- List,
-		   Http =/= no],
+			   http_request = Http} = Node} <- List,
+		   Http =/= no, not lists:member(is_after,
+					     Node#diagram_node.tags)],
     NodeDict = lists:foldl(
 		   fun (X, Y) -> dict:store(X, [X], Y) end,
 		   dict:new(), [element(1, Z) || Z <- NodeList]),
