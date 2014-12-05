@@ -19,6 +19,6 @@ read(Port) ->
 	{Port, {data, {noeol, Line}}} -> io:format("~s", [Line]),
 					 read(Port);
 	{Port, eof} -> ok
-    after 120000 -> io:format("."), read(Port)
+%    after 120000 -> io:format("."), read(Port)
     end.
 

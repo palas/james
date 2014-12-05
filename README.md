@@ -1,4 +1,4 @@
-JAMES (JUnit Model Extractor)
+JAMES (JUnit Model Extractor) [![Build Status](https://travis-ci.org/palas/james.svg?branch=master)](https://travis-ci.org/palas/james)
 =============================
 
 JAMES is a tool that aims at generating new tests for Web Services from existing JUnit tests. Currently it extracts a model in `.dot` format which can be rendered with the tool `dot` from Graphviz.
