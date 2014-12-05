@@ -63,18 +63,19 @@ clean_and_combinate(Island, Config) ->
     combinate_aux(dia_utils:remove_up_from(Config#config.remove_nodes_up_from, Island), Config).
 
 combinate_aux(Island,Config) ->
-    op(fun dia_utils:remove_elliptic_nodes/1, Config#config.remove_bubbles,
-       op(fun dia_utils:highlight_loops/1, Config#config.highlight_loops,
-	  op(fun string_combinator:combinate_strings/1, Config#config.collapse_strings,
-	     dia_utils:rebuild_idxs(
-	       op(fun dia_utils:collapse_integers/1, Config#config.collapse_integers,
-		  dia_utils:rebuild_idxs(
-		    dia_utils:generate_diamonds_in_drai(
-		      op(fun dia_utils:remove_orphan_nodes/1, Config#config.remove_orphan_nodes,
-			 dia_utils:remove_duplicated_arcs(
-			   combinate_aux2(
-			     dia_utils:generate_subgraphs(Island),
-			     Config,0,Config#config.max_iterations)))))))))).
+    op(fun dia_utils:print_nodeids/1, Config#config.print_node_numbers,
+       op(fun dia_utils:remove_elliptic_nodes/1, Config#config.remove_bubbles,
+	  op(fun dia_utils:highlight_loops/1, Config#config.highlight_loops,
+	     op(fun string_combinator:combinate_strings/1, Config#config.collapse_strings,
+		dia_utils:rebuild_idxs(
+		  op(fun dia_utils:collapse_integers/1, Config#config.collapse_integers,
+		     dia_utils:rebuild_idxs(
+		       dia_utils:generate_diamonds_in_drai(
+			 op(fun dia_utils:remove_orphan_nodes/1, Config#config.remove_orphan_nodes,
+			    dia_utils:remove_duplicated_arcs(
+			      combinate_aux2(
+				dia_utils:generate_subgraphs(Island),
+				Config,0,Config#config.max_iterations))))))))))).
 
 op(Fun, true, Input) -> Fun(Input);
 op(_, false, Input) -> Input.

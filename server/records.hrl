@@ -49,7 +49,7 @@
 -record(path, {cur_list_nodes, node_ids, arc_ids, depth, ori_node, direction}).
 -record(config, {remove_bubbles = false, highlight_loops = true,
 		 collapse_integers = true, collapse_strings = true,
-		 single_file = false,
+		 single_file = false, print_node_numbers = false,
 		 num_of_islands = 20, % inf = no limit
 		 big_k_value = 4, small_k_value = 1, remove_orphan_nodes = true,
 		 discard_calls_beginning_with = ["info"], % assert is another useful option
