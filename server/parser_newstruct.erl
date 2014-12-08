@@ -48,6 +48,8 @@
 gen_eqc(Pid, N, Path, Module) ->
     Drai = get_drai(Pid, N),
     template_gen:fun_templates(Drai, Path, Module),
+    dep_fsm_gen:gen_dep(Drai, Path, Module),
+    check_fsm_gen:gen_checks(Drai, Path, Module),
     eqc_fsm_gen:gen_eqc(Drai, Path, Module).
 
 get_drai(Pid, N) -> get_drai(Pid, N, #config{}).

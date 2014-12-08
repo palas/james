@@ -6,14 +6,13 @@
 
 -module(eqc_fsm_gen).
 
--export([gen_eqc/4, gen_eqc/3, eqc_fsm/2,eqc_fsm/3,pp_eunit/2]).
+-export([gen_eqc/4, gen_eqc/3, eqc_fsm/2, eqc_fsm/3, pp_eunit/2, get_control_nodes/1]).
 -include("records.hrl").
 -include("visualize.hrl").
 
 gen_eqc(Pid, N, Path, ModuleName) ->
     Drai = parser_newstruct:get_drai(Pid, N),
-    gen_eqc(Drai, Path, ModuleName),
-    dep_fsm_gen:gen_dep(Drai, Path, ModuleName).
+    gen_eqc(Drai, Path, ModuleName).
 
 gen_eqc(Drai, Path, ModuleName) ->
     List = dict:to_list(Drai#drai.dnodes),
@@ -72,19 +71,24 @@ extract_arc_info(List, AList, NodeDict) ->
 	       IdOri <- dict:fetch(IdStart, ExtNodeDict)].
 
 extract_node_info(List) ->
-    NodeList = [{Id, {Method, [Id]}} ||
-		   {Id, #diagram_node{
-			   content =  #callback{
-					 method_name = Method,
-					 depth = 1},
-			   http_request = Http} = Node} <- List,
-		   Http =/= no, not lists:member(is_after,
-					     Node#diagram_node.tags)],
+  NodeList = get_control_nodes(List),
     NodeDict = lists:foldl(
 		   fun (X, Y) -> dict:store(X, [X], Y) end,
 		   dict:new(), [element(1, Z) || Z <- NodeList]),
     NodeListDict = dict:from_list(NodeList),
     {NodeDict, NodeListDict, NodeList}.
+
+-spec get_control_nodes([#diagram_node{}]) -> any().
+get_control_nodes(List) ->
+  NodeList = [{Id, {Method, [Id]}} ||
+    {Id, #diagram_node{
+      content = #callback{
+        method_name = Method,
+        depth = 1},
+      http_request = Http} = Node} <- List,
+    Http =/= no, not lists:member(is_after,
+    Node#diagram_node.tags)],
+  NodeList.
 
 is_entry_point([entry_point|_]) -> true;
 is_entry_point([_Else|Rest]) -> is_entry_point(Rest);

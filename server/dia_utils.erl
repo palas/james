@@ -42,15 +42,16 @@
 -include("records.hrl").
 
 -export([expand_nodes_once/2, get_arc_from/1, get_nod_id/1, create_drai/2,
-	 generate_diamonds_in_drai/1, get_normal_nodes/1, rebuild_idxs/1,
-	 remove_duplicated_arcs/1, remove_orphan_nodes/1, remove_up_from/2,
-	 expand_node_id_to_trans_up/2, expand_node_id_to_trans_down/2,
-	 expand_tran_upwards/2, expand_tran_downwards/2, get_nod_ids/1,
-	 get_node_prop/1, get_tran_prop/1, join_node_pairs/3, sort_trans/1,
-	 sort_trans_desc/2, collapse_integers/1, highlight_loops/1,
-	 remove_elliptic_nodes/1, expand_nodes_down/2, expand_nodes_up/2,
-	 get_node_by_id/2, set_node/2, set_arc/2, remove_node/2,
-	 move_returns/3, get_arcs_up/2, generate_subgraphs/1, print_nodeids/1]).
+	generate_diamonds_in_drai/1, get_normal_nodes/1, rebuild_idxs/1,
+	remove_duplicated_arcs/1, remove_orphan_nodes/1, remove_up_from/2,
+	expand_node_id_to_trans_up/2, expand_node_id_to_trans_down/2,
+	expand_tran_upwards/2, expand_tran_downwards/2, get_nod_ids/1,
+	get_node_prop/1, get_tran_prop/1, join_node_pairs/3, sort_trans/1,
+	sort_trans_desc/2, collapse_integers/1, highlight_loops/1,
+	remove_elliptic_nodes/1, expand_nodes_down/2, expand_nodes_up/2,
+	get_node_by_id/2, set_node/2, set_arc/2, remove_node/2,
+	move_returns/3, get_arcs_up/2, generate_subgraphs/1, print_nodeids/1,
+	expand_nodes_within_cluster/2, resolve_ids/2, get_cluster_id/1, expand_diamonds_down/2]).
 
 %% Low level diagram record interface functions
 %% ============================================
@@ -84,6 +85,22 @@ expand_nodes_once(NodeSet, Drai) ->
 expand_nodes_down(NodeSet, #drai{arcsf = FromTo} = Drai) ->
     utils:sets_map(create_arc_solver(fun get_arc_to/1, Drai),
 		   utils:expand_set_through_idx(NodeSet, FromTo)).
+
+% Expands diamond nodes down but lets the others where they are
+expand_diamonds_down(Drai, NodeSet) ->
+	{Norm, Dia} = split_diamonds(Drai, NodeSet),
+	sets:union(Norm, expand_nodes_down(Dia, Drai)).
+
+split_diamonds(#drai{dnodes = DNodes}, NodeSet) ->
+	sets:fold(split_diamonds_fun_aux(DNodes), {sets:new(), sets:new()}, NodeSet).
+split_diamonds_fun_aux(DNodes) ->
+	fun (NodeId, {Norm, Dia}) ->
+		#diagram_node{tags = Tags} = dict:fetch(NodeId, DNodes),
+		case lists:member(diamond, Tags) of
+			true -> {Norm, sets:add_element(NodeId, Dia)};
+			false -> {sets:add_element(NodeId, Norm), Dia}
+		end
+	end.
 
 expand_nodes_up(NodeSet, #drai{arcst = ToFrom} = Drai) ->
     utils:sets_map(create_arc_solver(fun get_arc_from/1, Drai),
@@ -119,6 +136,9 @@ remove_duplicated_arcs(DArcs) ->
     element(2, dict:fold(fun dup_arc_fold/3,
 			 {dict:new(), dict:new()},
 			 DArcs)).
+
+get_cluster_id(#diagram_node{cluster = {cluster, Id, _}}) -> Id;
+get_cluster_id(_) -> none.
 
 dup_arc_fold(_, #diagram_arc{
 		   id = Id,
@@ -352,7 +372,7 @@ replace_nodeid_in_arc(#diagram_arc{
     replace_nodeid_in_arc(Arc#diagram_arc{
 		            id_end = NodeId2
 	                   }, NodeId1, NodeId2);
-replace_nodeid_in_arc(Else, _, _) -> Else.		  
+replace_nodeid_in_arc(Else, _, _) -> Else.
 
 remove_orphan_nodes(#drai{
 		      dnodes = DNodes,
@@ -538,6 +558,63 @@ get_node_lists_to_diamond_fold(Key, Value, {Acc, Drai}) ->
 	 _ -> Acc
      end, Drai}.
 
+% Find reverse dependencies for a list of nodes (control nodes)
+-spec expand_nodes_within_cluster(#drai{}, [#diagram_node{}]) -> {sets:set(string()), dict:dict(string(), sets:set(string()))}.
+expand_nodes_within_cluster(Drai, NodeList) ->
+	% We get list of lists of nodes grouped by cluster
+	ClusterGroups = utils:group_by(fun get_cluster_id/1, NodeList),
+	% For each node in each group we do depth-first search
+  merge_results([expand_cluster(Drai, ClusterGroup) || ClusterGroup <- ClusterGroups]).
+
+% We do depth-first search to find reverse dependencies within each cluster
+% We keep an alternative dict with parent -> child dict (Deps) and a set of covered nodes (Deps)
+-spec expand_cluster(#drai{}, [#diagram_node{}]) -> {sets:set(string()), dict:dict(string(), sets:set(string()))}.
+expand_cluster(Drai, NodeList) ->
+  expand_cluster_aux(Drai, NodeList, sets:from_list(get_nod_ids(NodeList)), dict:new()).
+expand_cluster_aux(_Drai, [], Nodes, Deps) -> {Nodes, Deps};
+expand_cluster_aux(Drai, [#diagram_node{id = Id} = Node|Rest], Nodes, Deps) ->
+	ValidChildren = expand_cluster_expand_one_aux(Drai, Id, Nodes, get_cluster_id(Node)),
+	NewDeps = add_to_deps(Id, ValidChildren, Deps),
+	NewNodes = sets:union(Nodes, ValidChildren),
+	expand_cluster_aux(Drai, resolve_ids(Drai, sets:to_list(ValidChildren)) ++ Rest, NewNodes, NewDeps).
+
+% We merge the list of tuples into a single tuple
+% Tuples have { (set of covered nodes), (dict of parent -> child relations dict(id, set(ids)))
+-spec merge_results([{sets:set(string()), dict:dict(string(), sets:set(string()))}]) -> {sets:set(string()), dict:dict(string(), sets:set(string()))}.
+merge_results(List) -> lists:foldl(fun merge_results_aux/2, {sets:new(), dict:new()}, List).
+merge_results_aux({Set1, Dict1}, {Set2, Dict2}) ->
+	{sets:union(Set1, Set2), dict:merge(fun (_, A, B) -> sets:union(A, B) end, Dict1, Dict2)}.
+
+% We find children nodes that are not in the set and are in the same cluster as the parent
+-spec expand_cluster_expand_one_aux(#drai{}, string(), sets:set(string()), any()) -> sets:set(string()).
+expand_cluster_expand_one_aux(Drai, Id, Nodes, Cluster) ->
+	RawChildrenSet = dia_utils:expand_diamonds_down(Drai, dia_utils:expand_nodes_down(sets:from_list([Id]), Drai)),
+	ChildrenSet = sets:subtract(RawChildrenSet, Nodes),
+	sets:filter(fun_in_cluster(Drai, Cluster), ChildrenSet).
+
+% Produces a function that takes a node id and returns true iif the node is in the cluster Cluster
+-spec fun_in_cluster(#drai{}, any()) -> fun((string()) -> (boolean())).
+fun_in_cluster(Drai, Cluster) ->
+	fun (Id) -> case dict:find(Id, Drai#drai.dnodes) of
+								{ok, Node} -> get_cluster_id(Node) =:= Cluster;
+		            _ -> false
+							end
+	end.
+
+% Adds the set of ValidChildren to the dict of (parent -> set(children)), where both parent and children are nodeIds
+-spec add_to_deps(string(), sets:set(string()), dict:dict(string(), sets:set(string()))) -> dict:dict(string(), sets:set(string())).
+add_to_deps(Id, ValidChildren, Deps) ->
+	dict:update(Id, fun_add_to_set(ValidChildren), ValidChildren, Deps).
+fun_add_to_set(ValidChildren) ->
+	fun (Set) -> sets:union(Set, ValidChildren) end.
+
+% Resolves a list of node ids to a list of node records
+-spec resolve_ids(#drai{}, [string()]) -> #diagram_node{}.
+resolve_ids(Drai, NodeIdList) ->
+  lists:map(fun_resolve_id(Drai), NodeIdList).
+fun_resolve_id(Drai) ->
+	fun (Id) -> dict:fetch(Id, Drai#drai.dnodes) end.
+
 
 %% Loop detection
 %% ==============
@@ -566,7 +643,7 @@ get_top_nodes(#drai{dnodes = DNodes,
 		    arcst = ArcsTo}) ->
     EndNodes = dict:fold(fun(_, Val, Set) -> sets:union(Val, Set) end,
 			 sets:new(), ArcsTo),
-    sets:subtract(sets:from_list(dict:fetch_keys(DNodes)), EndNodes). 
+    sets:subtract(sets:from_list(dict:fetch_keys(DNodes)), EndNodes).
 
 get_loopback_arcs_fold(Value, {Set, VisitedNodeSet}) ->
     case sets:is_element(get_arc_to(Value), VisitedNodeSet) of
@@ -586,6 +663,7 @@ generate_subgraphs(#drai{dnodes = DNodes} = Drai) ->
     {NewDrai,_,_} = sets:fold(fun depth_search_inc_in_clus/2, {Drai#drai{dnodes = DNodes2}, [], no}, BaseClusterNodesSet),
     sets:fold(fun find_class/2, NewDrai, BaseClusterNodesSet).
 
+-spec find_class(#diagram_node{}, #drai{}) -> #drai{}.
 find_class(#diagram_node{id = NodeId, cluster = Cluster, tags = Tags} = Node, #drai{dnodes = DNodes} = Drai) ->
 	ChildNodes = dia_utils:expand_nodes_down(sets:from_list([NodeId]), Drai),
 	NamesAndNodes = get_method_names([], Cluster, ChildNodes, Drai),
