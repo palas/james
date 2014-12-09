@@ -42,50 +42,56 @@
 
 -include_lib("eqc/include/eqc.hrl").
 
+% State accessors
+initial_state() -> {1, dict:new()}.
+add_result_to_state(Code, {N, Dict}, Result) ->
+    {N + 1, dict:append(Code, Result, Dict)}.
+get_var_num({N, _}) -> N.
+
+% Callback dummy iface
 callback(RawState, _Code, Params) ->
     {State, SubState} = case RawState of
 			    empty -> io:format("~nNEW TRACE~n"),
 				     io:format("=========~n~n"),
 				     io:format("STEP 1:~n"),
-				     {1, 1};
+				     {1, initial_state()};
 			    {N, M} -> io:format("~nSTEP ~p:~n", [N]),
 				      {N, M}
 			end,
     [_Result, NewSubState|_Inter] = lists:reverse(eqc_symbolic:eval(utils:serialise_trace_with_state(SubState, Params))),
     {State + 1, NewSubState}.
 
-
-actual_callback(State, _Code, #{obj_info := #{},
+actual_callback(State, Code, #{obj_info := #{},
 				value := Value}, []) ->
-    Result = {var, State},
+    Result = {jvar, get_var_num(State)},
     io:format("~p := ~p;~n", [Result, Value]),
-    {State + 1, Result};
-actual_callback(State, _Code, #{class_signature := ClassSignature,
+    {add_result_to_state(Code, State, Result), Result};
+actual_callback(State, Code, #{class_signature := ClassSignature,
 			       method_name := "<init>"}, {static, ParamList}) ->
-    Result = {var, State},
+    Result = {jvar, get_var_num(State)},
     io:format("~p := new ~s(~s);~n", [Result,
 				     class_to_normal_notation(ClassSignature),
 				     list_to_commasep_str(ParamList)]),
-    {State + 1, Result};
-actual_callback(State, _Code, #{class_signature := ClassSignature,
+    {add_result_to_state(Code, State, Result), Result};
+actual_callback(State, Code, #{class_signature := ClassSignature,
 				method_name := Name}, {static, ParamList}) ->
-    Result = {var, State},
+    Result = {jvar, get_var_num(State)},
     io:format("~p := ~s.~s(~s);~n", [Result,
 				     class_to_normal_notation(ClassSignature),
 				     Name,
 				     list_to_commasep_str(ParamList)]),
-    {State + 1, Result};
-actual_callback(State, _Code, #{method_name := Name}, {This, ParamList}) ->
-    Result = {var, State},
+    {add_result_to_state(Code, State, Result), Result};
+actual_callback(State, Code, #{method_name := Name}, {This, ParamList}) ->
+    Result = {jvar, get_var_num(State)},
     io:format("~p := (~p).~s(~s);~n", [Result, This, Name,
 				       list_to_commasep_str(ParamList)]),
-    {State + 1, Result};
+    {add_result_to_state(Code, State, Result), Result};
 actual_callback(State, Code, Rec, ParamList) ->
     io:format("~nState:~p~nCode:~p~nRec:~p~nParamList:~p~n",
 	      [State, Code, Rec, ParamList]),
-    Result = {var, State},
+    Result = {jvar, get_var_num(State)},
     io:format("Result: ~p~n~n", [Result]),
-    {State + 1, Result}.
+    {add_result_to_state(Code, State, Result), Result}.
 
 class_to_normal_notation([]) -> [];
 class_to_normal_notation([$L|Rest]) -> class_to_normal_notation_aux(Rest).
