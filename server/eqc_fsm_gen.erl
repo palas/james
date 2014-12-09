@@ -126,27 +126,29 @@ trailer(Module,Calls) ->
   [ erl_syntax:function(
       erl_syntax:atom(precondition),
       [ erl_syntax:clause([erl_syntax:variable("_From"),erl_syntax:variable("_To"),erl_syntax:variable("_S"),
-                           erl_syntax:tuple([erl_syntax:atom(call),
-					     erl_syntax:variable("_"),
-					     erl_syntax:abstract(Fun),
-					     erl_syntax:list([erl_syntax:variable("_") || _<-lists:seq(1,Args + 2)])])],[],
+                           erl_syntax:underscore()],[],
                           [erl_syntax:atom(true) ]) ||
-        {_Mod,Fun,Args} <- Calls ])] ++
+        {_Mod,_Fun,_Args} <- Calls ])] ++
   % initial_state_data
   [ erl_syntax:function(
       erl_syntax:atom(initial_state_data),
       [ erl_syntax:clause([],[],
-                          [erl_syntax:atom(empty)])])]++
+                          [erl_syntax:tuple([erl_syntax:atom(empty), erl_syntax:atom(empty)])])])] ++
   % next_state_data
+%RawState, {call, iface, evaluate, [{SymState, _OldRawState, _Params}]})
   [ erl_syntax:function(
       erl_syntax:atom(next_state_data),
       [ erl_syntax:clause([erl_syntax:variable("_From"),erl_syntax:variable("_To"),erl_syntax:variable("_S"),
-                           erl_syntax:variable("V"),
+                           erl_syntax:variable("RawState"),
                            erl_syntax:tuple([erl_syntax:atom(call),
-                                            erl_syntax:variable("_"),
-                                            erl_syntax:abstract(Fun),
-                                            erl_syntax:list([erl_syntax:variable("_") || _<-lists:seq(1,Args + 2)])])],[],
-                          [erl_syntax:variable("V") ])  || {_Mod,Fun,Args} <- Calls ])]++
+                                            erl_syntax:atom(Module),
+                                            erl_syntax:atom(evaluate),
+                                            erl_syntax:list(
+					      [erl_syntax:tuple([erl_syntax:variable("SymState"),
+								 erl_syntax:variable("_OldRawState"),
+								 erl_syntax:variable("_Params")])])])],[],
+                          [erl_syntax:tuple([erl_syntax:variable("SymState"),
+					    erl_syntax:variable("RawState")])])])] ++
   % postconditions
   [ erl_syntax:function(
       erl_syntax:atom(postcondition),
@@ -161,9 +163,11 @@ trailer(Module,Calls) ->
                             ]) |
        [ erl_syntax:clause([erl_syntax:variable("_From"),erl_syntax:variable("_To"),erl_syntax:variable("_S"),
                            erl_syntax:tuple([erl_syntax:atom(call),
-                                            erl_syntax:variable("_"),
-                                            erl_syntax:abstract(Fun),
-                                            erl_syntax:list([erl_syntax:variable("_") || _<-lists:seq(1,Args + 2)])]),
+                                            erl_syntax:atom(Module),
+                                            erl_syntax:atom(evaluate),                                                                   erl_syntax:list(
+					      [erl_syntax:tuple([erl_syntax:variable("_SymState"),
+								 erl_syntax:variable("_OldRawState"),
+								 erl_syntax:variable("_Params")])])]),
                            erl_syntax:variable("R")],[],
                           [erl_syntax:case_expr(
                              erl_syntax:variable("R"),[
@@ -172,7 +176,7 @@ trailer(Module,Calls) ->
                                                        erl_syntax:variable("_")])],[],[erl_syntax:atom(false)]),
                                  erl_syntax:clause([erl_syntax:variable("_")],[],[erl_syntax:atom(true)])])
                             ]) ||
-        {_Mod,Fun,Args} <- Calls ]])]++
+        {_Mod,_Fun,_Args} <- Calls ]])]++
   % property
   [erl_syntax:function(
       erl_syntax:atom(lists:concat(["prop_",Module])),
@@ -301,8 +305,7 @@ rename_states(Automata) ->
 
 
 eqccall(_Mod,Fun,SyntaxTree) ->
-  erl_syntax:tuple([erl_syntax:atom(call),
-                    erl_syntax:macro(erl_syntax:variable("MODULE")),erl_syntax:abstract(Fun),SyntaxTree]).
+  erl_syntax:application(erl_syntax:abstract(Fun), erl_syntax:list_elements(SyntaxTree)).
 
 mkfunc(From,Trans) ->
   erl_syntax:function(

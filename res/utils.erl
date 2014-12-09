@@ -39,7 +39,7 @@
 %%%-------------------------------------------------------------------
 -module(utils).
 
--export([serialise_trace_with_state/2]).
+-export([serialise_trace_with_state/2, update_symsubstate/2]).
 
 serialise_trace_with_state(State, Trace) ->
     {{STrace, _}, {_, _}} = serialise_trace_with_state_aux(Trace, {1, State}),
@@ -64,4 +64,11 @@ serialise_trace_with_state_aux(Else, Acc) when is_list(Else) ->
     {{lists:concat(ReqEls), SymEls}, NewAcc};
 serialise_trace_with_state_aux(Else, Acc) -> {{[], Else}, Acc}.
 
-
+update_symsubstate({jcall, _Mod, _Fun, Args}, State) ->
+    PreState = lists:foldl(fun update_symsubstate/2, State, Args),
+    iface:add_result_to_state_sym(hd(Args), PreState);
+update_symsubstate(Else, Acc) when is_tuple(Else) ->
+    update_symsubstate(tuple_to_list(Else), Acc);
+update_symsubstate(Else, Acc) when is_list(Else) ->
+    lists:foldl(fun update_symsubstate/2, Acc, Else);
+update_symsubstate(_Else, Acc) -> Acc.
