@@ -43,16 +43,16 @@
 -include_lib("eqc/include/eqc.hrl").
 
 callback(RawState, _Code, Params) ->
-    State = case RawState of
-		empty -> io:format("~nNEW TRACE~n"),
-			 io:format("=========~n~n"),
-			 io:format("STEP 1:~n"),
-			 1;
-		N -> io:format("~nSTEP ~p:~n", [N]),
-		     N
-	    end,
-    [_Result, _NewState|_Inter] = lists:reverse(eqc_symbolic:eval(utils:serialise_trace_with_state(1, Params))),
-    State + 1.
+    {State, SubState} = case RawState of
+			    empty -> io:format("~nNEW TRACE~n"),
+				     io:format("=========~n~n"),
+				     io:format("STEP 1:~n"),
+				     {1, 1};
+			    {N, M} -> io:format("~nSTEP ~p:~n", [N]),
+				      {N, M}
+			end,
+    [_Result, NewSubState|_Inter] = lists:reverse(eqc_symbolic:eval(utils:serialise_trace_with_state(SubState, Params))),
+    {State + 1, NewSubState}.
 
 
 actual_callback(State, _Code, #{obj_info := #{},
