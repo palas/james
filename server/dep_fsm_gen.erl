@@ -84,11 +84,64 @@ dep_file(ModuleName, ThisModuleName, {Prim, OneOfs, Calls}) ->
 
 mk_tree(ModuleName, ThisModuleName, {Prim, OneOfs, Calls}) ->
     header(ThisModuleName) ++
-	[erl_syntax:function(
+	[reuse_fun(ModuleName),
+	 erl_syntax:function(
 	  erl_syntax:atom(args_for),
 	  prim_funcs(ModuleName, ThisModuleName, Prim) ++
 	      oneofs_funcs(ModuleName, ThisModuleName, OneOfs) ++
 	      call_funcs(ModuleName, ThisModuleName, Calls))].
+
+reuse_fun(Module) ->
+    erl_syntax:function(
+      erl_syntax:atom(args_for_op),
+      [erl_syntax:clause(
+	 [erl_syntax:match_expr(
+	    erl_syntax:tuple(
+	      [erl_syntax:atom(empty),
+	       erl_syntax:atom(empty)]),
+	    erl_syntax:variable("State")),
+	  erl_syntax:variable("Code")],
+	 [],
+	 [erl_syntax:application(
+	    erl_syntax:atom(args_for),
+	    [erl_syntax:variable("State"),
+	     erl_syntax:variable("Code")])]),
+       erl_syntax:clause(
+	 [erl_syntax:match_expr(
+	    erl_syntax:tuple(
+	      [erl_syntax:tuple(
+		 [erl_syntax:underscore(),
+		  erl_syntax:variable("SymState")]),
+	       erl_syntax:variable("RawState")]),
+	    erl_syntax:variable("State")),
+	  erl_syntax:variable("Code")],
+	 [],
+	 [erl_syntax:case_expr(
+	    erl_syntax:application(
+	      erl_syntax:module_qualifier(
+		erl_syntax:atom(Module),
+		erl_syntax:atom(get_instances_of_sym)),
+	      [erl_syntax:variable("Code"),
+	       erl_syntax:variable("SymState"),
+	       erl_syntax:variable("RawState")]),
+	    [erl_syntax:clause(
+	       [erl_syntax:nil()],
+	       [],
+	       [erl_syntax:application(
+		  erl_syntax:atom(args_for),
+		  [erl_syntax:variable("State"),
+		   erl_syntax:variable("Code")])]),
+	     erl_syntax:clause(
+	       [erl_syntax:variable("List")],
+	       [],
+	       [erl_syntax:application(
+		  erl_syntax:atom(oneof),
+		  [erl_syntax:cons(
+		     erl_syntax:application(
+		       erl_syntax:atom(args_for),
+		       [erl_syntax:variable("State"),
+			erl_syntax:variable("Code")]),
+		     erl_syntax:variable("List"))])])])])]).
 
 header(Module) ->
   [erl_syntax:attribute(erl_syntax:atom(module),[erl_syntax:atom(Module)]),
@@ -100,7 +153,8 @@ mkinclude(String) ->
   erl_syntax:attribute(erl_syntax:atom(include_lib),[erl_syntax:string(String)]).
 
 prim_funcs(ModuleName, _ThisModuleName, Prim) ->
-    [erl_syntax:clause([erl_syntax:abstract(Code)],
+    [erl_syntax:clause([erl_syntax:variable("_State"),
+			erl_syntax:abstract(Code)],
 		       none,
 		       [erl_syntax:tuple(
 			  [erl_syntax:atom(jcall),
@@ -114,14 +168,19 @@ prim_funcs(ModuleName, _ThisModuleName, Prim) ->
      || {prim, Code, #diagram_node{content = Val}, none} <- Prim].
 
 oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) -> 
-    [erl_syntax:clause([erl_syntax:abstract(Code)],
+    [erl_syntax:clause([erl_syntax:variable(underscore_if_ne("State", PNodes)),
+			erl_syntax:abstract(Code)],
 		       none,
 		       [erl_syntax:application(
 			  erl_syntax:atom(oneof),
 			  [erl_syntax:list(lists:map(fun calls_for/1, PNodes))])])
      || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
 call_funcs(ModuleName, _ThisModuleName, Calls) ->
-    [erl_syntax:clause([erl_syntax:abstract(Code)],
+    [erl_syntax:clause([erl_syntax:variable(
+			  underscore_if_ne("State", case (This) of
+							static -> [];
+							Else -> Else end ++ Params)),
+			erl_syntax:abstract(Code)],
 		       none,
 		       [erl_syntax:tuple(
 			  [erl_syntax:atom(jcall),
@@ -135,13 +194,16 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 			  ])])])
      || {acall, Code, #diagram_node{content = Callback}, {This, Params}} <- Calls].
 
+underscore_if_ne(Var, []) -> [$_|Var];
+underscore_if_ne(Var, _) -> Var.
+
 this_call(List) when is_list(List) -> calls_for(List);
 this_call(Else) -> erl_syntax:abstract(Else).
 
 calls_for(Node) -> erl_syntax:application(
-		      erl_syntax:atom(args_for),
-		      [erl_syntax:string(Node)]).
-    
+		      erl_syntax:atom(args_for_op),
+		      [erl_syntax:variable("State"),
+		       erl_syntax:string(Node)]).
 
 map_abstract(List) when is_list(List) ->
     case io_lib:printable_list(List) of

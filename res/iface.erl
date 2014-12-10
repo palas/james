@@ -38,7 +38,8 @@
 %%% POSSIBILITY OF SUCH DAMAGE.
 %%%-------------------------------------------------------------------
 -module(iface).
--export([callback/3, actual_callback/4, evaluate/1, add_result_to_state_sym/2, get_num_var_sym/1]).
+-export([callback/3, actual_callback/4, evaluate/1, add_result_to_state_sym/2, get_num_var_sym/1,
+	 get_instances_of_sym/3, get_instance_of_raw/2]).
 
 -include_lib("eqc/include/eqc.hrl").
 
@@ -46,11 +47,18 @@
 initial_state_sym() -> {1, dict:new()}.
 add_result_to_state_sym(Code, {N, Dict}) ->
     {N + 1, dict:update(Code, fun (Old) -> [N|Old] end, [N], Dict)}.
+get_instances_of_sym(Code, {_N, Dict}, RawState) ->
+    case dict:find(Code, Dict) of
+	{ok, List} -> [{call, iface, get_instance_of_raw, [Entry, {call, erlang, element, [2, RawState]}]} || Entry <- List];
+	error -> []
+    end.
 get_num_var_sym({N, _}) -> N.
 % Raw state accessors
 initial_state_raw() -> {1, dict:new()}.
 add_result_to_state_raw(_Code, {N, Dict}, Result) ->
     {N + 1, dict:store(N, Result, Dict)}.
+get_instance_of_raw(Code, {_N, Dict}) ->
+    dict:fetch(Code, Dict).
 get_num_var_raw({N, _}) -> N.
 
 

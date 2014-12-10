@@ -261,7 +261,9 @@ add_state_and_gen_call(Mod, EList) ->
     ([NodeNum|_] = List) = erl_syntax:list_elements(EList),
     erl_syntax:list([erl_syntax:variable("State")|List]
 		    ++ [erl_syntax:application(erl_syntax:atom(atom_to_list(Mod) ++ "_dep"),
-					       erl_syntax:atom(args_for), [NodeNum])]).
+					       erl_syntax:atom(args_for),
+					       [erl_syntax:variable("State"),
+						NodeNum])]).
 
 cart([]) ->
   [];
