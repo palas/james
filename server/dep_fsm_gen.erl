@@ -95,7 +95,8 @@ reuse_fun(Module) ->
     erl_syntax:function(
       erl_syntax:atom(args_for_op),
       [erl_syntax:clause(
-	 [erl_syntax:match_expr(
+	 [erl_syntax:variable("Size"),
+		erl_syntax:match_expr(
 	    erl_syntax:tuple(
 	      [erl_syntax:atom(empty),
 	       erl_syntax:atom(empty)]),
@@ -104,10 +105,12 @@ reuse_fun(Module) ->
 	 [],
 	 [erl_syntax:application(
 	    erl_syntax:atom(args_for),
-	    [erl_syntax:variable("State"),
+	    [erl_syntax:variable("Size"),
+		   erl_syntax:variable("State"),
 	     erl_syntax:variable("Code")])]),
        erl_syntax:clause(
-	 [erl_syntax:match_expr(
+	 [erl_syntax:variable("Size"),
+		 erl_syntax:match_expr(
 	    erl_syntax:tuple(
 	      [erl_syntax:tuple(
 		 [erl_syntax:underscore(),
@@ -129,7 +132,8 @@ reuse_fun(Module) ->
 	       [],
 	       [erl_syntax:application(
 		  erl_syntax:atom(args_for),
-		  [erl_syntax:variable("State"),
+		  [erl_syntax:variable("Size"),
+			 erl_syntax:variable("State"),
 		   erl_syntax:variable("Code")])]),
 	     erl_syntax:clause(
 	       [erl_syntax:variable("List")],
@@ -139,7 +143,8 @@ reuse_fun(Module) ->
 		  [erl_syntax:cons(
 		     erl_syntax:application(
 		       erl_syntax:atom(args_for),
-		       [erl_syntax:variable("State"),
+		       [erl_syntax:variable("Size"),
+						erl_syntax:variable("State"),
 			erl_syntax:variable("Code")]),
 		     erl_syntax:variable("List"))])])])])]).
 
@@ -153,7 +158,8 @@ mkinclude(String) ->
   erl_syntax:attribute(erl_syntax:atom(include_lib),[erl_syntax:string(String)]).
 
 prim_funcs(ModuleName, _ThisModuleName, Prim) ->
-    [erl_syntax:clause([erl_syntax:variable("_State"),
+    [erl_syntax:clause([erl_syntax:variable("_Size"),
+			erl_syntax:variable("_State"),
 			erl_syntax:abstract(Code)],
 		       none,
 		       [erl_syntax:tuple(
@@ -168,7 +174,9 @@ prim_funcs(ModuleName, _ThisModuleName, Prim) ->
      || {prim, Code, #diagram_node{content = Val}, none} <- Prim].
 
 oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) -> 
-    [erl_syntax:clause([erl_syntax:variable(underscore_if_ne("State", PNodes)),
+    [erl_syntax:clause([
+			erl_syntax:variable(underscore_if_ne("Size", PNodes)),
+			erl_syntax:variable(underscore_if_ne("State", PNodes)),
 			erl_syntax:abstract(Code)],
 		       none,
 		       [erl_syntax:application(
@@ -176,23 +184,27 @@ oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
 			  [erl_syntax:list(lists:map(fun calls_for/1, PNodes))])])
      || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
 call_funcs(ModuleName, _ThisModuleName, Calls) ->
-    [erl_syntax:clause([erl_syntax:variable(
-			  underscore_if_ne("State", case (This) of
-							static -> [];
-							Else -> Else end ++ Params)),
-			erl_syntax:abstract(Code)],
-		       none,
-		       [erl_syntax:tuple(
-			  [erl_syntax:atom(jcall),
-			   erl_syntax:atom(ModuleName),
-			   erl_syntax:atom(actual_callback),
-			   erl_syntax:list(
-			     [erl_syntax:abstract(Code),
-			      map_abstract(template_gen:callback_to_map(Callback)),
-			      erl_syntax:tuple([this_call(This),
-					        erl_syntax:list(lists:map(fun calls_for/1, Params))])
-			  ])])])
-     || {acall, Code, #diagram_node{content = Callback}, {This, Params}} <- Calls].
+	[begin
+		 UnderscoreIfNe = (case (This) of
+												 static -> [];
+												 Else -> Else
+											 end ++ Params),
+		 erl_syntax:clause([erl_syntax:variable(underscore_if_ne("Size", UnderscoreIfNe)),
+			 erl_syntax:variable(underscore_if_ne("State", UnderscoreIfNe)),
+			 erl_syntax:abstract(Code)],
+			 none,
+			 [erl_syntax:tuple(
+				 [erl_syntax:atom(jcall),
+					 erl_syntax:atom(ModuleName),
+					 erl_syntax:atom(actual_callback),
+					 erl_syntax:list(
+						 [erl_syntax:abstract(Code),
+							 map_abstract(template_gen:callback_to_map(Callback)),
+							 erl_syntax:tuple([this_call(This),
+								 erl_syntax:list(lists:map(fun calls_for/1, Params))])
+						 ])])])
+	 end
+		|| {acall, Code, #diagram_node{content = Callback}, {This, Params}} <- Calls].
 
 underscore_if_ne(Var, []) -> [$_|Var];
 underscore_if_ne(Var, _) -> Var.
@@ -202,7 +214,8 @@ this_call(Else) -> erl_syntax:abstract(Else).
 
 calls_for(Node) -> erl_syntax:application(
 		      erl_syntax:atom(args_for_op),
-		      [erl_syntax:variable("State"),
+		      [erl_syntax:variable("Size"),
+					 erl_syntax:variable("State"),
 		       erl_syntax:string(Node)]).
 
 map_abstract(List) when is_list(List) ->
