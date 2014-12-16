@@ -57,20 +57,24 @@ gen_dep_aux(Code, #diagram_node{properties = [rectangle|_]} = Rec, {{PrimL, OneO
     {{PrimL, OneOfsL, [{acall, Code, Rec, parents_codes(Code, Drai, normal)}|CallsL]}, Drai}.
 
 parents_codes(Code, Drai, Mode) ->
-    sort_codes(dia_utils:expand_node_id_to_trans_up(Code, Drai), Mode).
+    sort_codes(Drai, dia_utils:expand_node_id_to_trans_up(Code, Drai), Mode).
 
-sort_codes(Codes, Mode) ->
+sort_codes(Drai, Codes, Mode) ->
     case {lists:dropwhile(fun (#diagram_arc{content = this}) -> false;
 			      (#diagram_arc{content = {param, _}}) -> false;
 			      (_) -> true end,
 			  utils:sort_using(fun code_sorter/1, Codes)), Mode} of
-	{[#diagram_arc{id_start = Id, content = this}|Rest], normal} -> {Id, clean_arcs(Rest)};
-	{Rest, normal} -> {static, clean_arcs(Rest)};
-	{Rest, diamond} -> clean_arcs(Rest)
+	{[#diagram_arc{id_start = Id, content = this}|Rest], normal} -> {Id, clean_arcs(normal, Drai, Rest)};
+	{Rest, normal} -> {static, clean_arcs(normal, Drai, Rest)};
+	{Rest, diamond} -> clean_arcs(diamond, Drai, Rest)
     end.
 
-clean_arcs(List) when is_list(List) -> lists:map(fun clean_arcs/1, List);
+clean_arcs(normal, _Drai, List) -> lists:map(fun clean_arcs/1, List);
+clean_arcs(diamond, Drai, List) -> clean_arcs_diamond(Drai, List).
 clean_arcs(#diagram_arc{id_start = Id}) -> Id.
+
+clean_arcs_diamond(_Drai, List) -> [{normal, Element#diagram_arc.id_start} || Element <- List].
+%TODO: find loop, normal or dead_end, remove dead_end, if all is loops replace with normal
 
 code_sorter(#diagram_arc{content = this}) -> -1;
 code_sorter(#diagram_arc{content = {param, N}}) -> N;
@@ -181,7 +185,7 @@ oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
 		       none,
 		       [erl_syntax:application(
 			  erl_syntax:atom(oneof),
-			  [erl_syntax:list(lists:map(fun calls_for/1, PNodes))])])
+			  [calls_for_with_size(PNodes)])])
      || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
 call_funcs(ModuleName, _ThisModuleName, Calls) ->
 	[begin
@@ -201,7 +205,7 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 						 [erl_syntax:abstract(Code),
 							 map_abstract(template_gen:callback_to_map(Callback)),
 							 erl_syntax:tuple([this_call(This),
-								 erl_syntax:list(lists:map(fun calls_for/1, Params))])
+								 calls_for_with_size_normal(Params)])
 						 ])])])
 	 end
 		|| {acall, Code, #diagram_node{content = Callback}, {This, Params}} <- Calls].
@@ -212,11 +216,39 @@ underscore_if_ne(Var, _) -> Var.
 this_call(List) when is_list(List) -> calls_for(List);
 this_call(Else) -> erl_syntax:abstract(Else).
 
-calls_for(Node) -> erl_syntax:application(
+calls_for_with_size(List) ->
+	case split_calls(List) of
+		{Normal, []} -> calls_for_with_size_normal(Normal);
+		{[], Loop} -> calls_for_with_size_loop(Loop);
+		{Normal, Loop} -> erl_syntax:infix_expr(calls_for_with_size_normal(Normal),
+			erl_syntax:operator("++"),
+			calls_for_with_size_loop(Loop))
+	end.
+calls_for_with_size_loop([Loop]) ->
+	erl_syntax:list_comp(calls_for_aux(Loop, erl_syntax:infix_expr(erl_syntax:variable("Size"),
+		erl_syntax:operator("-"), erl_syntax:integer(1))),
+		[erl_syntax:infix_expr(erl_syntax:variable("Size"),
+			erl_syntax:operator(">"),
+			erl_syntax:integer(0))]);
+calls_for_with_size_loop([Loop | Rest]) ->
+	erl_syntax:infix_expr(calls_for_with_size_loop([Loop]),
+		erl_syntax:operator("++"),
+		calls_for_with_size_loop(Rest)).
+calls_for_with_size_normal(List) ->
+	erl_syntax:list(lists:map(fun calls_for/1, List)).
+
+calls_for(Node) -> calls_for_aux(Node, erl_syntax:variable("Size")).
+calls_for_aux(Node, Size) -> erl_syntax:application(
 		      erl_syntax:atom(args_for_op),
-		      [erl_syntax:variable("Size"),
-					 erl_syntax:variable("State"),
+		      [Size, erl_syntax:variable("State"),
 		       erl_syntax:string(Node)]).
+
+split_calls(List) -> split_calls(List, {[], []}).
+split_calls([], Tuple) -> Tuple;
+split_calls([{normal, NodeId}|Rest], {Normal, Loop}) ->
+	split_calls(Rest, {[NodeId|Normal], Loop});
+split_calls([{loop, NodeId}|Rest], {Normal, Loop}) ->
+	split_calls(Rest, {Normal, [NodeId|Loop]}).
 
 map_abstract(List) when is_list(List) ->
     case io_lib:printable_list(List) of

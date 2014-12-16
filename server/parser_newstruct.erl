@@ -60,7 +60,9 @@ get_drai(Pid, N, PreConfig) ->
 			      collapse_strings = true,
 			      single_file = true,
 			      num_of_islands = 1,
-			      remove_orphan_nodes = true},
+			      remove_orphan_nodes = true,
+            discard_calls_beginning_with = [],
+            remove_nodes_up_from = []},
     {ONodes, OArcs} = filter_and_gen_dia(fetch_traces(Pid, N), Config),
     [{Nodes, Arcs}] = combinator:combinate(ONodes, OArcs, Config),
     dia_utils:create_drai(Nodes, Arcs).
