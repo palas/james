@@ -452,8 +452,10 @@ remove_elliptic_nodes(#drai{dnodes = DNodes} = Drai) ->
 
 print_nodeids(#drai{dnodes = DNodes} = Drai) ->
     Drai#drai{dnodes = dict:map(
-			 fun (_, #diagram_node{id = Id, label = Label} = Node) ->
-				 Node#diagram_node{label = Id ++ " - " ++ Label}
+			 fun (_, #diagram_node{id = Id, label = Label} = Node) when is_list(Label) ->
+				 Node#diagram_node{label = Id ++ " - " ++ Label};
+				   (_, #diagram_node{id = Id, label = Label} = Node) ->
+				 Node#diagram_node{label = Id ++ " - " ++ lists:flatten(io_lib:format("~p", [Label]))}
 			 end, DNodes)}.
 
 %% Collapse integers
