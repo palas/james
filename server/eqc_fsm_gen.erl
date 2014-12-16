@@ -144,7 +144,8 @@ trailer(Module,Calls) ->
                                             erl_syntax:atom(Module),
                                             erl_syntax:atom(evaluate),
                                             erl_syntax:list(
-					      [erl_syntax:tuple([erl_syntax:variable("SymState"),
+					      [erl_syntax:underscore(),
+                 erl_syntax:tuple([erl_syntax:variable("SymState"),
 								 erl_syntax:variable("_OldRawState"),
 								 erl_syntax:variable("_Params")])])])],[],
                           [erl_syntax:tuple([erl_syntax:variable("SymState"),
@@ -165,7 +166,8 @@ trailer(Module,Calls) ->
                            erl_syntax:tuple([erl_syntax:atom(call),
                                             erl_syntax:atom(Module),
                                             erl_syntax:atom(evaluate),                                                                   erl_syntax:list(
-					      [erl_syntax:tuple([erl_syntax:variable("_SymState"),
+					      [erl_syntax:underscore(),
+                 erl_syntax:tuple([erl_syntax:variable("_SymState"),
 								 erl_syntax:variable("_OldRawState"),
 								 erl_syntax:variable("_Params")])])]),
                            erl_syntax:variable("R")],[],
@@ -260,11 +262,13 @@ trans_gen([{From,Transitions}|Rest]) ->
 add_state_and_gen_call(Mod, EList) ->
   ([NodeNum | _] = List) = erl_syntax:list_elements(EList),
   erl_syntax:list([erl_syntax:variable("State") | List]
-  ++ [erl_syntax:application(erl_syntax:atom(atom_to_list(Mod) ++ "_dep"),
+  ++ [
+    erl_syntax:macro(erl_syntax:variable("SIZED"),
+      [erl_syntax:variable("Size"),erl_syntax:application(erl_syntax:atom(atom_to_list(Mod) ++ "_dep"),
         erl_syntax:atom(args_for),
         [erl_syntax:variable("Size"),
           erl_syntax:variable("State"),
-          NodeNum])]).
+          NodeNum])])]).
 
 cart([]) ->
   [];
@@ -308,9 +312,7 @@ rename_states(Automata) ->
 
 
 eqccall(_Mod,Fun,SyntaxTree) ->
-  erl_syntax:macro(erl_syntax:variable("SIZED"),
-    [erl_syntax:variable("Size"),
-     erl_syntax:application(erl_syntax:abstract(Fun), erl_syntax:list_elements(SyntaxTree))]).
+  erl_syntax:application(erl_syntax:abstract(Fun), erl_syntax:list_elements(SyntaxTree)).
 
 mkfunc(From,Trans) ->
   erl_syntax:function(

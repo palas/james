@@ -38,7 +38,7 @@
 %%% POSSIBILITY OF SUCH DAMAGE.
 %%%-------------------------------------------------------------------
 -module(iface).
--export([callback/3, actual_callback/4, evaluate/1, add_result_to_state_sym/2, get_num_var_sym/1,
+-export([callback/3, actual_callback/4, evaluate/2, add_result_to_state_sym/2, get_num_var_sym/1,
 	 get_instances_of_sym/3, get_instance_of_raw/2]).
 
 -include_lib("eqc/include/eqc.hrl").
@@ -63,15 +63,14 @@ get_num_var_raw({N, _}) -> N.
 
 
 % Callback dummy iface
-callback({SymState, RawState}, _Code, Params) ->
+callback({SymState, RawState}, Code, P) ->
     {SymSuperState, SymSubState} = case SymState of
 				       empty -> {1, initial_state_sym()};
 				       {N, M} -> {N, M}
 				   end,
-    {call, iface, evaluate, [{{SymSuperState + 1, utils:update_symsubstate(Params, SymSubState)},
-			      RawState, Params}]}.
+    {call, iface, evaluate, [Code|?LET(Params, P, [{{SymSuperState + 1, utils:update_symsubstate(Params, SymSubState)}, RawState, Params}])]}.
 
-evaluate({{_, _}, RawState, Params}) ->
+evaluate(_, {{_, _}, RawState, Params}) ->
     {RawSuperState, RawSubState} = case RawState of
 				       empty -> {1, initial_state_raw()};
 				       {N, M} -> {N, M}
