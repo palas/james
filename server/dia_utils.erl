@@ -68,6 +68,10 @@ get_arc_id(#diagram_arc{id = Id}) -> Id.
 get_arc_from(#diagram_arc{id_start = Id}) -> Id.
 get_arc_to(#diagram_arc{id_end = Id}) -> Id.
 
+is_data_dep(#diagram_arc{content = this}) -> true;
+is_data_dep(#diagram_arc{content = {param, _}}) -> true;
+is_data_dep(_) -> false.
+
 get_node_by_id(NodeId, #drai{dnodes = DNodes}) -> dict:find(NodeId, DNodes).
 get_nodes_by_ids([], _Drai) -> [];
 get_nodes_by_ids([NodeId|Rest], Drai) ->
@@ -81,6 +85,10 @@ expand_nodes_once(NodeSet, Drai) ->
     NodeSetFrom = expand_nodes_down(NodeSet, Drai),
     NodeSetTo = expand_nodes_up(NodeSet, Drai),
     sets:union(NodeSetFrom, NodeSetTo).
+
+expand_nodes_down_wt_arcfilter(Filter, NodeSet, #drai{arcsf = FromTo} = Drai) ->
+	utils:sets_map( create_arc_solver(fun get_arc_to/1, Drai),
+		sets:filter(Filter, utils:expand_set_through_idx(NodeSet, FromTo))).
 
 expand_nodes_down(NodeSet, #drai{arcsf = FromTo} = Drai) ->
     utils:sets_map(create_arc_solver(fun get_arc_to/1, Drai),
@@ -628,11 +636,11 @@ highlight_loops(Drai) ->
 
 dfs_loop_detection(Node, {ArcSet, Visited, Drai}) ->
     ThisNodeSet = sets:from_list([Node]),
-    NewVisited = sets:union(ThisNodeSet, Visited),
-    ExpandedNodeSet = expand_nodes_down(ThisNodeSet, Drai),
+    NewVisited = sets:add_element(Node, Visited),
+    ExpandedNodeSet = expand_nodes_down_wt_arcfilter(fun is_data_dep/1, ThisNodeSet, Drai),
     NewArcSet = element(1, sets:fold(fun get_loopback_arcs_fold/2,
-				     {ArcSet, Visited},
-				     get_arcs_down(ThisNodeSet, Drai))),
+				     {ArcSet, NewVisited},
+				     sets:filter(fun is_data_dep/1, get_arcs_down(ThisNodeSet, Drai)))),
     NewNodeSet = sets:subtract(ExpandedNodeSet, NewVisited),
     {element(1, sets:fold(fun dfs_loop_detection/2,
 			  {NewArcSet, NewVisited, Drai},
@@ -652,11 +660,11 @@ get_loopback_arcs_fold(Value, {Set, VisitedNodeSet}) ->
     end.
 
 highlight_arcs_set(ArcSet, Drai) ->
-    ThickArcList = lists:map(fun set_arc_thick/1, sets:to_list(ArcSet)),
+    ThickArcList = lists:map(fun set_arc_thick_and_mark_loop/1, sets:to_list(ArcSet)),
     update_arcs(ThickArcList, Drai).
 
-set_arc_thick(#diagram_arc{properties = List} = Arc) ->
-    Arc#diagram_arc{properties = [thick|List]}.
+set_arc_thick_and_mark_loop(#diagram_arc{properties = List} = Arc) ->
+    Arc#diagram_arc{properties = [thick|List], is_loop = true}.
 
 generate_subgraphs(#drai{dnodes = DNodes} = Drai) ->
     {_ClusterD, BaseClusterNodesSet, DNodes2} = dict:fold(fun get_base_cluster_nodes/3, {dict:new(), sets:new(), DNodes}, DNodes),
