@@ -68,6 +68,16 @@ get_arc_id(#diagram_arc{id = Id}) -> Id.
 get_arc_from(#diagram_arc{id_start = Id}) -> Id.
 get_arc_to(#diagram_arc{id_end = Id}) -> Id.
 
+
+mk_filter_plus_to(Drai, Filter) ->
+	fun (Id, Set) -> filter_plus_to(Filter, dict:fetch(Id, Drai#drai.darcs), Set) end.
+
+filter_plus_to(Filter, Arc, Set) ->
+	case Filter(Arc) of
+		true -> sets:add_element(get_arc_to(Arc), Set);
+		false -> Set
+	end.
+
 is_data_dep(#diagram_arc{content = this}) -> true;
 is_data_dep(#diagram_arc{content = {param, _}}) -> true;
 is_data_dep(_) -> false.
@@ -87,8 +97,8 @@ expand_nodes_once(NodeSet, Drai) ->
     sets:union(NodeSetFrom, NodeSetTo).
 
 expand_nodes_down_wt_arcfilter(Filter, NodeSet, #drai{arcsf = FromTo} = Drai) ->
-	utils:sets_map( create_arc_solver(fun get_arc_to/1, Drai),
-		sets:filter(Filter, utils:expand_set_through_idx(NodeSet, FromTo))).
+	sets:fold(mk_filter_plus_to(Drai, Filter), sets:new(),
+		utils:expand_set_through_idx(NodeSet, FromTo)).
 
 expand_nodes_down(NodeSet, #drai{arcsf = FromTo} = Drai) ->
     utils:sets_map(create_arc_solver(fun get_arc_to/1, Drai),
@@ -630,7 +640,7 @@ fun_resolve_id(Drai) ->
 %% ==============
 
 highlight_loops(Drai) ->
-    TopNodesSet = get_top_nodes(Drai),
+    TopNodesSet = sets:from_list(dict:fetch_keys(Drai#drai.dnodes)),
     ArcSet = element(1, sets:fold(fun dfs_loop_detection/2,
 				  {sets:new(), sets:new(), Drai},
 				  TopNodesSet)),
