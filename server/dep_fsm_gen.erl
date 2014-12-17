@@ -73,8 +73,10 @@ clean_arcs(normal, _Drai, List) -> lists:map(fun clean_arcs/1, List);
 clean_arcs(diamond, Drai, List) -> clean_arcs_diamond(Drai, List).
 clean_arcs(#diagram_arc{id_start = Id}) -> Id.
 
-clean_arcs_diamond(_Drai, List) -> [{normal, Element#diagram_arc.id_start} || Element <- List].
-%TODO: find loop, normal or dead_end, remove dead_end, if all is loops replace with normal
+clean_arcs_diamond(_Drai, List) ->
+	[{case Loop of true -> loop; false -> normal end, Start}
+	|| #diagram_arc{id_start = Start, is_loop = Loop} <- List].
+%TODO: remove dead ends
 
 code_sorter(#diagram_arc{content = this}) -> -1;
 code_sorter(#diagram_arc{content = {param, N}}) -> N;
@@ -219,7 +221,7 @@ this_call(Else) -> erl_syntax:abstract(Else).
 calls_for_with_size(List) ->
 	case split_calls(List) of
 		{Normal, []} -> calls_for_with_size_normal(Normal);
-		{[], Loop} -> calls_for_with_size_loop(Loop);
+		{[], Loop} -> calls_for_with_size_normal(Loop);
 		{Normal, Loop} -> erl_syntax:infix_expr(calls_for_with_size_normal(Normal),
 			erl_syntax:operator("++"),
 			calls_for_with_size_loop(Loop))

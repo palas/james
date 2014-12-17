@@ -55,7 +55,7 @@ gen_eqc(Pid, N, Path, Module) ->
 get_drai(Pid, N) -> get_drai(Pid, N, #config{}).
 get_drai(Pid, N, PreConfig) ->
     Config = PreConfig#config{remove_bubbles = false,
-			      highlight_loops = false,
+			      highlight_loops = true,
 			      collapse_integers = true,
 			      collapse_strings = true,
 			      single_file = true,
