@@ -41,7 +41,7 @@ compose_fsm(ModuleName, NodeListDict, NodeList, ArcList) ->
 			    pn = none, pat = none, res = none}]},
 		   End}
 	      end
-	      || {Ori, End} <- ArcList],
+	      || {Ori, End} <- ArcList, dict:is_key(End, NodeListDict)],
         fSt = []}.
 
 extract_arc_info(List, AList, NodeDict) ->
