@@ -42,16 +42,18 @@
 -include("records.hrl").
 
 -export([expand_nodes_once/2, get_arc_from/1, get_nod_id/1, create_drai/2,
-	generate_diamonds_in_drai/1, get_normal_nodes/1, rebuild_idxs/1,
-	remove_duplicated_arcs/1, remove_orphan_nodes/1, remove_up_from/2,
-	expand_node_id_to_trans_up/2, expand_node_id_to_trans_down/2,
-	expand_tran_upwards/2, expand_tran_downwards/2, get_nod_ids/1,
-	get_node_prop/1, get_tran_prop/1, join_node_pairs/3, sort_trans/1,
-	sort_trans_desc/2, collapse_integers/1, highlight_loops/1,
-	remove_elliptic_nodes/1, expand_nodes_down/2, expand_nodes_up/2,
-	get_node_by_id/2, set_node/2, set_arc/2, remove_node/2,
-	move_returns/3, get_arcs_up/2, generate_subgraphs/1, print_nodeids/1,
-	expand_nodes_within_cluster/2, resolve_ids/2, get_cluster_id/1, expand_diamonds_down/2]).
+	 generate_diamonds_in_drai/1, get_normal_nodes/1, rebuild_idxs/1,
+	 remove_duplicated_arcs/1, remove_orphan_nodes/1, remove_up_from/2,
+	 expand_node_id_to_trans_up/2, expand_node_id_to_trans_down/2,
+	 expand_tran_upwards/2, expand_tran_downwards/2, get_nod_ids/1,
+	 get_node_prop/1, get_tran_prop/1, join_node_pairs/3, sort_trans/1,
+	 sort_trans_desc/2, collapse_integers/1, highlight_loops/1,
+	 remove_elliptic_nodes/1, expand_nodes_down/2, expand_nodes_up/2,
+	 get_node_by_id/2, set_node/2, set_arc/2, remove_node/2,
+	 move_returns/3, get_arcs_up/2, generate_subgraphs/1, print_nodeids/1,
+	 expand_nodes_within_cluster/2, resolve_ids/2, get_cluster_id/1,
+	 expand_diamonds_down/2, is_data_dep/1, get_top_nodes/1,
+	 get_control_nodes/1]).
 
 %% Low level diagram record interface functions
 %% ============================================
@@ -574,7 +576,8 @@ get_node_lists_to_diamond_fold(Key, Value, {Acc, Drai}) ->
     {case get_nod_id(Value) of
 	 ("diamond" ++ _) = DiaId ->
 	     NodeIds = expand_nodes_up(sets:from_list([Key]), Drai),
-	     [{DiaId, lists:map(fun (Id) -> dict:fetch(Id, Drai#drai.dnodes) end, sets:to_list(NodeIds))}|Acc];
+	     [{DiaId, lists:map(fun (Id) -> dict:fetch(Id, Drai#drai.dnodes) end,
+				sets:to_list(NodeIds))}|Acc];
 	 _ -> Acc
      end, Drai}.
 
@@ -661,9 +664,19 @@ dfs_loop_detection(Node, {ArcSet, Visited, Drai}) ->
 
 get_top_nodes(#drai{dnodes = DNodes,
 		    arcst = ArcsTo}) ->
-    EndNodes = dict:fold(fun(_, Val, Set) -> sets:union(Val, Set) end,
+    EndNodes = dict:fold(fun(Key, _, Set) -> sets:add_element(Key, Set) end,
 			 sets:new(), ArcsTo),
     sets:subtract(sets:from_list(dict:fetch_keys(DNodes)), EndNodes).
+
+get_control_nodes(#drai{dnodes = DNodes}) ->
+    dict:fold(fun add_control_nodes_to_set/3,
+	      sets:new(), DNodes).
+
+add_control_nodes_to_set(Key, Node, Set) ->
+    case is_control_node(Node) of
+	false -> Set;
+	true -> sets:add_element(Key, Set)
+    end.
 
 get_loopback_arcs_fold(Value, {Set, VisitedNodeSet}) ->
     case sets:is_element(get_arc_to(Value), VisitedNodeSet) of
@@ -759,3 +772,8 @@ get_base_cluster_nodes(NodeId, #diagram_node{http_request = {Method, URL} = HR} 
     NewNode = Node#diagram_node{cluster = {cluster, ClusterId, parser_utils:print_escaped({Method, URL})}},
     {dict:store(HR, ClusterId, ClusterDict), sets:add_element(NewNode, Set), dict:store(NodeId, NewNode, DNodes)};
 get_base_cluster_nodes(_, _, Acc) -> Acc.
+
+
+is_control_node(#diagram_node{http_request = no}) -> false;
+is_control_node(_) -> true.
+
