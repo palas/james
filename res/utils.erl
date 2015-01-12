@@ -51,7 +51,7 @@ add_result_to_state_sym(Code, {N, Dict}) ->
     {N + 1, dict:update(Code, fun (Old) -> [N|Old] end, [N], Dict)}.
 get_instances_of_sym(Code, {_N, Dict}, RawState) ->
     case dict:find(Code, Dict) of
-	{ok, List} -> [{call, iface, get_instance_of_raw, [Entry, {call, erlang, element, [2, RawState]}]} || Entry <- List];
+	{ok, List} -> [{call, ?MODULE, get_instance_of_raw, [Entry, {call, erlang, element, [2, RawState]}]} || Entry <- List];
 	error -> []
     end.
 get_num_var_sym({N, _}) -> N.
