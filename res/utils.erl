@@ -42,16 +42,16 @@
 -export([serialise_trace_with_state/2, update_symsubstate/2, initial_state_sym/0,
 	 add_result_to_state_sym/2, get_instances_of_sym/3, get_num_var_sym/1,
 	 initial_state_raw/0, add_result_to_state_raw/3, get_instance_of_raw/2,
-	 get_num_var_raw/1, add_checks/2]).
+	 get_instance_of_raw_aux/2, get_num_var_raw/1, add_checks/2]).
 
 
 % Symbolic state accessors
 initial_state_sym() -> {1, dict:new()}.
 add_result_to_state_sym(Code, {N, Dict}) ->
     {N + 1, dict:update(Code, fun (Old) -> [N|Old] end, [N], Dict)}.
-get_instances_of_sym(Code, {_N, Dict}, RawState) ->
+get_instances_of_sym(Code, {_N, Dict}, _RawState) ->
     case dict:find(Code, Dict) of
-	{ok, List} -> [{call, ?MODULE, get_instance_of_raw, [Entry, {call, erlang, element, [2, RawState]}]} || Entry <- List];
+	{ok, List} -> [{jcall, ?MODULE, get_instance_of_raw_aux, [Entry]} || Entry <- List];
 	error -> []
     end.
 get_num_var_sym({N, _}) -> N.
@@ -61,6 +61,8 @@ add_result_to_state_raw(_Code, {N, Dict}, Result) ->
     {N + 1, dict:store(N, Result, Dict)}.
 get_instance_of_raw(Code, {_N, Dict}) ->
     dict:fetch(Code, Dict).
+get_instance_of_raw_aux(RawState, Code) ->
+    {RawState, get_instance_of_raw(Code, RawState)}.
 get_num_var_raw({N, _}) -> N.
 
 % ToDo: generate check calls for params
@@ -89,7 +91,7 @@ serialise_trace_with_state_aux(Else, Acc) when is_list(Else) ->
     {{lists:concat(ReqEls), SymEls}, NewAcc};
 serialise_trace_with_state_aux(Else, Acc) -> {{[], Else}, Acc}.
 
-update_symsubstate({jcall, _Mod, _Fun, Args}, State) ->
+update_symsubstate({jcall, _Mod, actual_callback, Args}, State) ->
     PreState = lists:foldl(fun update_symsubstate/2, State, Args),
     utils:add_result_to_state_sym(hd(Args), PreState);
 update_symsubstate(Else, Acc) when is_tuple(Else) ->
