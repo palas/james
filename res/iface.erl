@@ -38,41 +38,21 @@
 %%% POSSIBILITY OF SUCH DAMAGE.
 %%%-------------------------------------------------------------------
 -module(iface).
--export([callback/3, actual_callback/4, evaluate/2, add_result_to_state_sym/2, get_num_var_sym/1,
-	 get_instances_of_sym/3, get_instance_of_raw/2]).
+-export([callback/3, actual_callback/4, evaluate/2]).
 
 -include_lib("eqc/include/eqc.hrl").
-
-% Symbolic state accessors
-initial_state_sym() -> {1, dict:new()}.
-add_result_to_state_sym(Code, {N, Dict}) ->
-    {N + 1, dict:update(Code, fun (Old) -> [N|Old] end, [N], Dict)}.
-get_instances_of_sym(Code, {_N, Dict}, RawState) ->
-    case dict:find(Code, Dict) of
-	{ok, List} -> [{call, iface, get_instance_of_raw, [Entry, {call, erlang, element, [2, RawState]}]} || Entry <- List];
-	error -> []
-    end.
-get_num_var_sym({N, _}) -> N.
-% Raw state accessors
-initial_state_raw() -> {1, dict:new()}.
-add_result_to_state_raw(_Code, {N, Dict}, Result) ->
-    {N + 1, dict:store(N, Result, Dict)}.
-get_instance_of_raw(Code, {_N, Dict}) ->
-    dict:fetch(Code, Dict).
-get_num_var_raw({N, _}) -> N.
-
 
 % Callback dummy iface
 callback({SymState, RawState}, Code, P) ->
     {SymSuperState, SymSubState} = case SymState of
-				       empty -> {1, initial_state_sym()};
+				       empty -> {1, utils:initial_state_sym()};
 				       {N, M} -> {N, M}
 				   end,
     {call, iface, evaluate, [Code|?LET(Params, P, [{{SymSuperState + 1, utils:update_symsubstate(Params, SymSubState)}, RawState, Params}])]}.
 
 evaluate(_, {{_, _}, RawState, Params}) ->
     {RawSuperState, RawSubState} = case RawState of
-				       empty -> {1, initial_state_raw()};
+				       empty -> {1, utils:initial_state_raw()};
 				       {N, M} -> {N, M}
 				   end,
     [_Result, NewRawSubState|_Inter] = lists:reverse(eqc_symbolic:eval(utils:serialise_trace_with_state(RawSubState, Params))),
@@ -80,35 +60,35 @@ evaluate(_, {{_, _}, RawState, Params}) ->
 
 actual_callback(State, Code, #{obj_info := #{},
 				value := Value}, []) ->
-    Result = {jvar, get_num_var_raw(State)},
+    Result = {jvar, utils:get_num_var_raw(State)},
     io:format("~p := ~p;~n", [Result, Value]),
-    {add_result_to_state_raw(Code, State, Result), Result};
+    {utils:add_result_to_state_raw(Code, State, Result), Result};
 actual_callback(State, Code, #{class_signature := ClassSignature,
 			       method_name := "<init>"}, {static, ParamList}) ->
-    Result = {jvar, get_num_var_raw(State)},
+    Result = {jvar, utils:get_num_var_raw(State)},
     io:format("~p := new ~s(~s);~n", [Result,
 				     class_to_normal_notation(ClassSignature),
 				     list_to_commasep_str(ParamList)]),
-    {add_result_to_state_raw(Code, State, Result), Result};
+    {utils:add_result_to_state_raw(Code, State, Result), Result};
 actual_callback(State, Code, #{class_signature := ClassSignature,
 				method_name := Name}, {static, ParamList}) ->
-    Result = {jvar, get_num_var_raw(State)},
+    Result = {jvar, utils:get_num_var_raw(State)},
     io:format("~p := ~s.~s(~s);~n", [Result,
 				     class_to_normal_notation(ClassSignature),
 				     Name,
 				     list_to_commasep_str(ParamList)]),
-    {add_result_to_state_raw(Code, State, Result), Result};
+    {utils:add_result_to_state_raw(Code, State, Result), Result};
 actual_callback(State, Code, #{method_name := Name}, {This, ParamList}) ->
-    Result = {jvar, get_num_var_raw(State)},
+    Result = {jvar, utils:get_num_var_raw(State)},
     io:format("~p := (~p).~s(~s);~n", [Result, This, Name,
 				       list_to_commasep_str(ParamList)]),
-    {add_result_to_state_raw(Code, State, Result), Result};
+    {utils:add_result_to_state_raw(Code, State, Result), Result};
 actual_callback(State, Code, Rec, ParamList) ->
     io:format("~nState:~p~nCode:~p~nRec:~p~nParamList:~p~n",
 	      [State, Code, Rec, ParamList]),
-    Result = {jvar, get_num_var_raw(State)},
+    Result = {jvar, utils:get_num_var_raw(State)},
     io:format("Result: ~p~n~n", [Result]),
-    {add_result_to_state_raw(Code, State, Result), Result}.
+    {utils:add_result_to_state_raw(Code, State, Result), Result}.
 
 class_to_normal_notation([]) -> [];
 class_to_normal_notation([$L|Rest]) -> class_to_normal_notation_aux(Rest).

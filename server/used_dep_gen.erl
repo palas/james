@@ -159,7 +159,6 @@ clean_arcs(#diagram_arc{id_start = Id}) -> Id.
 clean_arcs_diamond(_Drai, List) ->
 	[{case Loop of true -> loop; false -> normal end, Start}
 	|| #diagram_arc{id_start = Start, is_loop = Loop} <- List].
-%TODO: remove dead ends
 
 code_sorter(#diagram_arc{content = this}) -> -1;
 code_sorter(#diagram_arc{content = {param, N}}) -> N;

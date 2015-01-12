@@ -39,7 +39,30 @@
 %%%-------------------------------------------------------------------
 -module(utils).
 
--export([serialise_trace_with_state/2, update_symsubstate/2]).
+-export([serialise_trace_with_state/2, update_symsubstate/2, initial_state_sym/0,
+	 add_result_to_state_sym/2, get_instances_of_sym/3, get_num_var_sym/1,
+	 initial_state_raw/0, add_result_to_state_raw/3, get_instance_of_raw/2,
+	 get_num_var_raw/1]).
+
+
+% Symbolic state accessors
+initial_state_sym() -> {1, dict:new()}.
+add_result_to_state_sym(Code, {N, Dict}) ->
+    {N + 1, dict:update(Code, fun (Old) -> [N|Old] end, [N], Dict)}.
+get_instances_of_sym(Code, {_N, Dict}, RawState) ->
+    case dict:find(Code, Dict) of
+	{ok, List} -> [{call, iface, get_instance_of_raw, [Entry, {call, erlang, element, [2, RawState]}]} || Entry <- List];
+	error -> []
+    end.
+get_num_var_sym({N, _}) -> N.
+% Raw state accessors
+initial_state_raw() -> {1, dict:new()}.
+add_result_to_state_raw(_Code, {N, Dict}, Result) ->
+    {N + 1, dict:store(N, Result, Dict)}.
+get_instance_of_raw(Code, {_N, Dict}) ->
+    dict:fetch(Code, Dict).
+get_num_var_raw({N, _}) -> N.
+
 
 serialise_trace_with_state(State, Trace) ->
     {{STrace, _}, {_, _}} = serialise_trace_with_state_aux(Trace, {1, State}),
@@ -66,7 +89,7 @@ serialise_trace_with_state_aux(Else, Acc) -> {{[], Else}, Acc}.
 
 update_symsubstate({jcall, _Mod, _Fun, Args}, State) ->
     PreState = lists:foldl(fun update_symsubstate/2, State, Args),
-    iface:add_result_to_state_sym(hd(Args), PreState);
+    utils:add_result_to_state_sym(hd(Args), PreState);
 update_symsubstate(Else, Acc) when is_tuple(Else) ->
     update_symsubstate(tuple_to_list(Else), Acc);
 update_symsubstate(Else, Acc) when is_list(Else) ->

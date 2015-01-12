@@ -128,7 +128,7 @@ reuse_fun(Module) ->
 	 [erl_syntax:case_expr(
 	    erl_syntax:application(
 	      erl_syntax:module_qualifier(
-		erl_syntax:atom(Module),
+		erl_syntax:atom("utils"),
 		erl_syntax:atom(get_instances_of_sym)),
 	      [erl_syntax:variable("Code"),
 	       erl_syntax:variable("SymState"),
