@@ -42,7 +42,7 @@
 -export([serialise_trace_with_state/2, update_symsubstate/2, initial_state_sym/0,
 	 add_result_to_state_sym/2, get_instances_of_sym/3, get_num_var_sym/1,
 	 initial_state_raw/0, add_result_to_state_raw/3, get_instance_of_raw/2,
-	 get_num_var_raw/1]).
+	 get_num_var_raw/1, add_checks/2]).
 
 
 % Symbolic state accessors
@@ -63,6 +63,8 @@ get_instance_of_raw(Code, {_N, Dict}) ->
     dict:fetch(Code, Dict).
 get_num_var_raw({N, _}) -> N.
 
+% ToDo: generate check calls for params
+add_checks(_Code, SymSubState) -> {[], SymSubState}.
 
 serialise_trace_with_state(State, Trace) ->
     {{STrace, _}, {_, _}} = serialise_trace_with_state_aux(Trace, {1, State}),
