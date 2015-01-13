@@ -78,12 +78,18 @@ mkinclude(String) ->
   erl_syntax:attribute(erl_syntax:atom(include_lib), [erl_syntax:string(String)]).
 
 call_funcs(_ModuleName, _ThisModuleName, {Nodes, Deps}) ->
-  [erl_syntax:clause([erl_syntax:abstract(NodeId)],
-    none,
-    [erl_syntax:tuple([erl_syntax:string(NodeId),
-      erl_syntax:list(lists:map(fun checks_for/1, sets:to_list(dict:fetch(NodeId, Deps)))
-        )])])
+  [begin
+     DepList = sets:to_list(dict:fetch(NodeId, Deps)),
+     erl_syntax:clause([erl_syntax:abstract(NodeId)],
+       none,
+       [case lists:map(fun checks_for/1, DepList) of
+          [] -> erl_syntax:list([erl_syntax:string(NodeId)]);
+          [H|T] -> lists:foldr(fun ast_append/2, H, T)
+        end])
+   end
     || #diagram_node{id = NodeId} <- Nodes].
+
+ast_append(El, Acc) -> erl_syntax:infix_expr(El, erl_syntax:operator("++"), Acc).
 
 checks_for(Node) -> erl_syntax:application(
   erl_syntax:atom(checks_for),

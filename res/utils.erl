@@ -39,10 +39,13 @@
 %%%-------------------------------------------------------------------
 -module(utils).
 
+-include_lib("eqc/include/eqc.hrl").
+
 -export([serialise_trace_with_state/2, update_symsubstate/2, initial_state_sym/0,
 	 add_result_to_state_sym/2, get_instances_of_sym/3, get_num_var_sym/1,
 	 initial_state_raw/0, add_result_to_state_raw/3, get_instance_of_raw/2,
-	 get_instance_of_raw_aux/2, get_num_var_raw/1, add_checks/2]).
+	 get_instance_of_raw_aux/2, get_num_var_raw/1, add_checks/2, control_add/2,
+	 used_and/1, used_and/2, used_or/1]).
 
 
 % Symbolic state accessors
@@ -64,6 +67,36 @@ get_instance_of_raw(Code, {_N, Dict}) ->
 get_instance_of_raw_aux(RawState, Code) ->
     {RawState, get_instance_of_raw(Code, RawState)}.
 get_num_var_raw({N, _}) -> N.
+
+control_add(State, Code) ->
+    case utils:get_instances_of_sym(Code, State, dummy) of
+      [] -> error;
+      List -> {ok, oneof(List)}
+    end.
+
+used_and({static, List} = A) ->
+    used_and(A, List);
+used_and({This, List} = A) ->
+    used_and(A, [This|List]);
+used_and(A) -> used_and(A, A).
+used_and(A, List) ->
+    try used_and_aux(List) of
+	_ -> {ok, A}
+    catch
+	has_error -> error
+    end.
+used_and_aux([error|_]) -> throw(has_error);
+used_and_aux([{ok, El}|Rest]) -> [El|used_and_aux(Rest)];
+used_and_aux([]) -> [].
+
+used_or(List) ->
+    case lists:filter(fun is_ok/1, List) of
+	[] -> error;
+	Else -> {ok, oneof(List)}
+    end.
+
+is_ok({ok, _}) -> true;
+is_ok(error) -> false.
 
 % ToDo: generate check calls for params
 add_checks(_Code, SymSubState) -> {[], SymSubState}.

@@ -97,7 +97,7 @@ mk_tree(ModuleName, ThisModuleName, {Prim, OneOfs, Calls}) ->
 	      oneofs_funcs(ModuleName, ThisModuleName, OneOfs) ++
 	      call_funcs(ModuleName, ThisModuleName, Calls))].
 
-reuse_fun(Module) ->
+reuse_fun(_Module) ->
     erl_syntax:function(
       erl_syntax:atom(args_for_op),
       [erl_syntax:clause(
