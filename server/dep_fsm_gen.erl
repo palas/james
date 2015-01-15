@@ -181,8 +181,8 @@ prim_funcs(ModuleName, _ThisModuleName, Prim) ->
 
 oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) -> 
     [erl_syntax:clause([
-			erl_syntax:variable(underscore_if_ne("Size", PNodes)),
-			erl_syntax:variable(underscore_if_ne("State", PNodes)),
+			erl_syntax:variable(utils:underscore_if_ne("Size", PNodes)),
+			erl_syntax:variable(utils:underscore_if_ne("State", PNodes)),
 			erl_syntax:abstract(Code)],
 		       none,
 		       [erl_syntax:application(
@@ -190,30 +190,34 @@ oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
 			  [calls_for_with_size(PNodes)])])
      || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
 call_funcs(ModuleName, _ThisModuleName, Calls) ->
-	[begin
-		 UnderscoreIfNe = (case (This) of
-												 static -> [];
-												 Else -> Else
-											 end ++ Params),
-		 erl_syntax:clause([erl_syntax:variable(underscore_if_ne("Size", UnderscoreIfNe)),
-			 erl_syntax:variable(underscore_if_ne("State", UnderscoreIfNe)),
-			 erl_syntax:abstract(Code)],
-			 none,
-			 [erl_syntax:tuple(
-				 [erl_syntax:atom(jcall),
-					 erl_syntax:atom(ModuleName),
-					 erl_syntax:atom(actual_callback),
-					 erl_syntax:list(
-						 [erl_syntax:abstract(Code),
-							 map_abstract(template_gen:callback_to_map(Callback)),
-							 erl_syntax:tuple([this_call(This),
-								 calls_for_with_size_normal(Params)])
-						 ])])])
-	 end
-		|| {acall, Code, #diagram_node{content = Callback}, {This, Params}} <- Calls].
+	[
+		begin
+			IsThis = lists:member(this, Node#diagram_node.tags),
+			UnderscoreIfNe = (case (This) of
+													static -> [];
+													Else -> Else
+												end ++ Params),erl_syntax:clause([
+				erl_syntax:variable(utils:underscore_if_true(utils:underscore_if_ne("Size", UnderscoreIfNe), IsThis)),
+				erl_syntax:variable(utils:underscore_if_true(utils:underscore_if_ne("State", UnderscoreIfNe), IsThis)),
+				erl_syntax:abstract(Code)],
+				none,
+				[case lists:member(this, Node#diagram_node.tags) of
+					 false ->
+						 erl_syntax:tuple(
+							 [erl_syntax:atom(jcall),
+								 erl_syntax:atom(ModuleName),
+								 erl_syntax:atom(actual_callback),
+								 erl_syntax:list(
+									 [erl_syntax:abstract(Code),
+										 map_abstract(template_gen:callback_to_map(Callback)),
+										 erl_syntax:tuple([this_call(This),
+											 calls_for_with_size_normal(Params)])
+									 ])]);
+					 true -> erl_syntax:abstract(this)
+				 end])
+		end
+		|| {acall, Code, (#diagram_node{content = Callback} = Node), {This, Params}} <- Calls].
 
-underscore_if_ne(Var, []) -> [$_|Var];
-underscore_if_ne(Var, _) -> Var.
 
 this_call(List) when is_list(List) -> calls_for(List);
 this_call(Else) -> erl_syntax:abstract(Else).

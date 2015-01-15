@@ -53,7 +53,7 @@
 	 move_returns/3, get_arcs_up/2, generate_subgraphs/1, print_nodeids/1,
 	 expand_nodes_within_cluster/2, resolve_ids/2, get_cluster_id/1,
 	 expand_diamonds_down/2, is_data_dep/1, get_top_nodes/1,
-	 get_control_nodes/1]).
+	 get_control_nodes/1, set_this_node/2]).
 
 %% Low level diagram record interface functions
 %% ============================================
@@ -776,4 +776,12 @@ get_base_cluster_nodes(_, _, Acc) -> Acc.
 
 is_control_node(#diagram_node{http_request = no}) -> false;
 is_control_node(_) -> true.
+
+set_this_node(ThisNodeName, Drai) ->
+	Nodes = sets:to_list(find_nodes(sets:from_list([ThisNodeName]), Drai)),
+	lists:foldl(fun set_this_node_fold/2, Drai, Nodes).
+
+set_this_node_fold(Id, #drai{dnodes = DNodes} = Drai) ->
+	(#diagram_node{tags = Tags} = Node) = dict:fetch(Id, DNodes),
+	Drai#drai{dnodes = dict:store(Id, Node#diagram_node{tags = [this|Tags]}, DNodes)}.
 

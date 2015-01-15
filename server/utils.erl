@@ -42,7 +42,7 @@
 -export([mk_dic/2, mk_idx/2, mk_idx/3, expand_set_through_idx/2, separate_by/3,
 	 is_element_of_any_set/2, sets_map/2, append_to_dict_set/3, id/1,
 	 remove_from_dict_set/3, dic_values/1, group_by/2, sort_using/2, usort_using/2,
-	 dict_def_find/3]).
+	 dict_def_find/3, underscore_if_true/2, underscore_if_ne/2]).
 
 % Creates a Dictionary using the result
 % of applying the Fun to the elements
@@ -160,3 +160,11 @@ dict_def_find(Def, Key, Dict) ->
 	{ok, Value} -> Value;
 	error -> Def
     end.
+
+
+underscore_if_true(Var, true) -> [$_|Var];
+underscore_if_true(Var, _) -> Var.
+
+underscore_if_ne(Var, []) -> [$_|Var];
+underscore_if_ne(Var, _) -> Var.
+

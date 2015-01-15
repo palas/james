@@ -54,4 +54,5 @@
 		 big_k_value = 4, small_k_value = 1, remove_orphan_nodes = true,
 		 discard_calls_beginning_with = ["info"], % assert is another useful option
 		 remove_nodes_up_from = ["createTest", "getLogger", "run"],
+	   this_generator = "run",
 		 max_iterations = inf, highlight_last_merge = false}).

@@ -60,7 +60,8 @@ combinate(SN,SA,Config) ->
 %% =======================
 
 clean_and_combinate(Island, Config) ->
-    combinate_aux(dia_utils:remove_up_from(Config#config.remove_nodes_up_from, Island), Config).
+    combinate_aux(dia_utils:remove_up_from(Config#config.remove_nodes_up_from,
+			dia_utils:set_this_node(Config#config.this_generator, Island)), Config).
 
 combinate_aux(Island,Config) ->
     op(fun dia_utils:print_nodeids/1, Config#config.print_node_numbers,
