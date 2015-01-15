@@ -85,7 +85,7 @@ actual_callback(State, Code, #{obj_info := #{},
 actual_callback(State, Code, #{class_signature := ClassSignature,
 			       method_name := "<init>"}, {static, ParamList}) ->
     Result = {jvar, utils:get_num_var_raw(State)},
-    io:format("~s ~s := new ~s(~s);~n", [class_to_normal_notation(ClassSignature),
+    io:format("~s ~s = new ~s(~s);~n", [class_to_normal_notation(ClassSignature),
 					 name_for(Result),
 					 class_to_normal_notation(ClassSignature),
 					 list_to_commasep_str(
@@ -101,7 +101,7 @@ actual_callback(State, Code, #{class_signature := ClassSignature,
 			    [class_to_normal_notation(ClassSignature),
 			    Name, list_to_commasep_str(
 				    lists:map(fun name_for/1, ParamList))]);
-	_ -> io:format("~s ~s := ~s.~s(~s);~n",
+	_ -> io:format("~s ~s = ~s.~s(~s);~n",
 		       [Ret,
 			name_for(Result),
 			class_to_normal_notation(ClassSignature),
@@ -117,7 +117,7 @@ actual_callback(State, Code, #{method_name := Name,
 	"void" -> io:format("~s.~s(~s);~n", [name_for(This), Name,
 			    list_to_commasep_str(
 			      lists:map(fun name_for/1, ParamList))]);
-	_ -> io:format("~s ~s := ~s.~s(~s);~n",
+	_ -> io:format("~s ~s = ~s.~s(~s);~n",
 		       [Ret, name_for(Result), name_for(This), Name,
 			list_to_commasep_str(
 			  lists:map(fun name_for/1, ParamList))])
