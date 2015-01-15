@@ -58,46 +58,70 @@ callback({SymState, RawState}, Code, P) ->
 
 evaluate(_, {{_, _}, RawState, [Params|Checks]}) ->
     {RawSuperState, RawSubState} = case RawState of
-				       empty -> {1, utils:initial_state_raw()};
+				       empty -> io:format("~n"),
+						{1, utils:initial_state_raw()};
 				       {N, M} -> {N, M}
 				   end,
     [_Result, NewRawSubState|_Inter] = lists:reverse(eqc_symbolic:eval(utils:serialise_trace_with_state(RawSubState, Params))),
     {FinalRawSubState, _} = lists:foldr(fun evaluate_checks/2, {NewRawSubState, 1}, Checks),
     case Checks of
 	[] -> ok;
-	_ -> io:format("* End checks~n")
+	_ -> io:format("// End of postconditions~n")
     end,
     {RawSuperState + 1, FinalRawSubState}.
 
 evaluate_checks(Param, {RawState, N}) ->
-    io:format("* Check: ~p~n", [N]),
+    io:format("// Postcondition: ~p~n", [N]),
     [_Result, NewRawSubState|_Inter] = lists:reverse(eqc_symbolic:eval(utils:serialise_trace_with_state(RawState, Param))),
     {NewRawSubState, N + 1}.
 
 actual_callback(State, Code, #{obj_info := #{},
-				value := Value}, []) ->
-    Result = {jvar, utils:get_num_var_raw(State)},
-    io:format("~p := ~p;~n", [Result, Value]),
+			       type := Type,
+			       value := Value}, []) ->
+    Num = utils:get_num_var_raw(State),
+    Result = {jvar, Num},
+    io:format("~s ~s = ~p;~n", [type_to_java(Type), name_for(Result), Value]),
     {utils:add_result_to_state_raw(Code, State, Result), Result};
 actual_callback(State, Code, #{class_signature := ClassSignature,
 			       method_name := "<init>"}, {static, ParamList}) ->
     Result = {jvar, utils:get_num_var_raw(State)},
-    io:format("~p := new ~s(~s);~n", [Result,
-				     class_to_normal_notation(ClassSignature),
-				     list_to_commasep_str(ParamList)]),
+    io:format("~s ~s := new ~s(~s);~n", [class_to_normal_notation(ClassSignature),
+					 name_for(Result),
+					 class_to_normal_notation(ClassSignature),
+					 list_to_commasep_str(
+					   lists:map(fun name_for/1, ParamList))]),
     {utils:add_result_to_state_raw(Code, State, Result), Result};
 actual_callback(State, Code, #{class_signature := ClassSignature,
-				method_name := Name}, {static, ParamList}) ->
+			       method_name := Name,
+			       method_signature := Signature}, {static, ParamList}) ->
     Result = {jvar, utils:get_num_var_raw(State)},
-    io:format("~p := ~s.~s(~s);~n", [Result,
-				     class_to_normal_notation(ClassSignature),
-				     Name,
-				     list_to_commasep_str(ParamList)]),
+    Ret = return_from_sig(Signature),
+    case Ret of
+	"void" -> io:format("~s.~s(~s);~n",
+			    [class_to_normal_notation(ClassSignature),
+			    Name, list_to_commasep_str(
+				    lists:map(fun name_for/1, ParamList))]);
+	_ -> io:format("~s ~s := ~s.~s(~s);~n",
+		       [Ret,
+			name_for(Result),
+			class_to_normal_notation(ClassSignature),
+			Name, list_to_commasep_str(
+				lists:map(fun name_for/1, ParamList))])
+    end,
     {utils:add_result_to_state_raw(Code, State, Result), Result};
-actual_callback(State, Code, #{method_name := Name}, {This, ParamList}) ->
+actual_callback(State, Code, #{method_name := Name,
+			       method_signature := Signature}, {This, ParamList}) ->
     Result = {jvar, utils:get_num_var_raw(State)},
-    io:format("~p := (~p).~s(~s);~n", [Result, This, Name,
-				       list_to_commasep_str(ParamList)]),
+    Ret = return_from_sig(Signature),
+    case Ret of
+	"void" -> io:format("~s.~s(~s);~n", [name_for(This), Name,
+			    list_to_commasep_str(
+			      lists:map(fun name_for/1, ParamList))]);
+	_ -> io:format("~s ~s := ~s.~s(~s);~n",
+		       [Ret, name_for(Result), name_for(This), Name,
+			list_to_commasep_str(
+			  lists:map(fun name_for/1, ParamList))])
+    end,
     {utils:add_result_to_state_raw(Code, State, Result), Result};
 actual_callback(State, Code, Rec, ParamList) ->
     io:format("~nState:~p~nCode:~p~nRec:~p~nParamList:~p~n",
@@ -106,7 +130,37 @@ actual_callback(State, Code, Rec, ParamList) ->
     io:format("Result: ~p~n~n", [Result]),
     {utils:add_result_to_state_raw(Code, State, Result), Result}.
 
+return_from_sig(String) ->
+    class_to_normal_notation(tl(lists:dropwhile(diffrom($)), String))).
+
+diffrom(Char) -> fun (T) -> Char =/= T end.
+
+type_to_java(integer) -> "int";
+type_to_java(float) -> "float";
+type_to_java(double) -> "double";
+type_to_java(null) -> "Object";
+type_to_java(string) -> "String";
+type_to_java(stringBuffer) -> "java.lang.StringBuffer";
+type_to_java(stringBuilder) -> "java.lang.StringBuilder";
+type_to_java(class) -> "Class<?>";
+type_to_java(boolean) -> "boolean";
+type_to_java(char) -> "char";
+type_to_java(short) -> "short";
+type_to_java(long) -> "long".
+
+name_for(this) -> "this";
+name_for({jvar, Num}) -> "var" ++ integer_to_list(Num).
+
 class_to_normal_notation([]) -> [];
+class_to_normal_notation([$B]) -> "byte";
+class_to_normal_notation([$C]) -> "char";
+class_to_normal_notation([$D]) -> "double";
+class_to_normal_notation([$F]) -> "float";
+class_to_normal_notation([$I]) -> "int";
+class_to_normal_notation([$J]) -> "long";
+class_to_normal_notation([$S]) -> "short";
+class_to_normal_notation([$Z]) -> "boolean";
+class_to_normal_notation([$V]) -> "void";
 class_to_normal_notation([$L|Rest]) -> class_to_normal_notation_aux(Rest).
 class_to_normal_notation_aux(";") -> [];
 class_to_normal_notation_aux([$/|Rest]) -> [$.|class_to_normal_notation_aux(Rest)];
@@ -114,5 +168,5 @@ class_to_normal_notation_aux([Char|Rest]) -> [Char|class_to_normal_notation_aux(
 
 list_to_commasep_str(L) -> lists:flatten(list_to_commasep_str_aux(L)).
 list_to_commasep_str_aux([]) -> "";
-list_to_commasep_str_aux([H|[]]) -> [io_lib:format("~p", [H])];
-list_to_commasep_str_aux([H|T]) -> [io_lib:format("~p, ", [H])|list_to_commasep_str_aux(T)].
+list_to_commasep_str_aux([H|[]]) -> [io_lib:format("~s", [H])];
+list_to_commasep_str_aux([H|T]) -> [io_lib:format("~s, ", [H])|list_to_commasep_str_aux(T)].

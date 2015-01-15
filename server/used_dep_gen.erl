@@ -50,44 +50,6 @@ get_dep_data(Drai) ->
     TopNodes = dia_utils:get_top_nodes(DepDrai),
     ControlNodes = dia_utils:get_control_nodes(DepDrai),
 	{DepDrai, TopNodes, ControlNodes}.
-%    find_ctrl_deps(TopNodes, ControlNodes, DepDict, Drai).
-%    SubGraph = remove_no_inv_deps(DepDrai, Nodes).
-
-%% {function,1,is_solvable,2,
-%%               [{clause,1,
-%%                        [{integer,1,5432},{var,1,'AvailableCtrlNodes'}],
-%%                        [],
-%%                        [{op,1,'orelse',
-%%                             {call,1,
-%%                                   {atom,1,is_solvable},
-%%                                   [{integer,1,123},
-%%                                    {var,1,'AvailableCtrlNodes'}]},
-%%                             {call,1,
-%%                                   {atom,1,is_solvable},
-%%                                   [{integer,1,321},
-%%                                    {var,1,'AvailableCtrlNodes'}]}}]}]}
-
-%% {function,1,is_solvable,2,
-%%               [{clause,1,
-%%                        [{integer,1,5432},{var,1,'AvailableCtrlNodes'}],
-%%                        [],
-%%                        [{op,1,'andalso',
-%%                             {call,1,
-%%                                   {atom,1,is_solvable},
-%%                                   [{integer,1,123},
-%%                                    {var,1,'AvailableCtrlNodes'}]},
-%%                             {call,1,
-%%                                   {atom,1,is_solvable},
-%%                                   [{integer,1,321},
-%%                                    {var,1,'AvailableCtrlNodes'}]}}]}]}
-
-
-%% {function,1,is_solvable,2,
-%%               [{clause,1,
-%%                        [{integer,1,5432},{var,1,'AvailableCtrlNodes'}],
-%%                        [],
-%%                        [{atom,1,true}]}]}
-
 
 remove_loops_and_control(Drai) ->
     dia_utils:rebuild_idxs(remove_loops(remove_control(Drai))).
