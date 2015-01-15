@@ -45,7 +45,7 @@
 	 add_result_to_state_sym/2, get_instances_of_sym/3, get_num_var_sym/1,
 	 initial_state_raw/0, add_result_to_state_raw/3, get_instance_of_raw/2,
 	 get_instance_of_raw_aux/2, get_num_var_raw/1, add_checks/2, control_add/2,
-	 used_and/1, used_and/2, used_or/1]).
+	 used_and_res/1, used_and_fix/2, used_or/1, remove_result_tag/1]).
 
 
 % Symbolic state accessors
@@ -74,32 +74,44 @@ control_add(State, Code) ->
       List -> {ok, oneof(List)}
     end.
 
-used_and({static, List} = A) ->
-    used_and(A, List);
-used_and({This, List} = A) ->
-    used_and(A, [This|List]);
-used_and(A) -> used_and(A, A).
-used_and(A, List) ->
+used_and_fix(_Def, error) -> error;
+used_and_fix(Def, _Res) -> {ok, Def}.
+used_and_res({This, List}) ->
+    case used_and_res(place_static(This, List)) of
+	error -> error;
+	Else -> replace_static(This, Else)
+    end;
+used_and_res(List) when is_list(List) ->
     try used_and_aux(List) of
-	_ -> {ok, A}
+	Res -> Res
     catch
 	has_error -> error
     end.
+place_static(static, List) -> List;
+place_static(Else, List) -> [Else|List].
+replace_static(static, List) -> {static, List};
+replace_static(_Else, [This|List]) -> {This, List}.
+
 used_and_aux([error|_]) -> throw(has_error);
-used_and_aux([{ok, El}|Rest]) -> [El|used_and_aux(Rest)];
+used_and_aux([{ok, El}|Rest]) -> [El|used_and_res(Rest)];
 used_and_aux([]) -> [].
 
 used_or(List) ->
-    case lists:filter(fun is_ok/1, List) of
+    case remove_result_tag(List) of
 	[] -> error;
-	Else -> {ok, oneof(List)}
+	Else -> {ok, oneof(Else)}
     end.
 
-is_ok({ok, _}) -> true;
-is_ok(error) -> false.
+remove_result_tag([{ok, Sth}|Rest]) -> [Sth|remove_result_tag(Rest)];
+remove_result_tag([error|Rest]) -> remove_result_tag(Rest);
+remove_result_tag([]) -> [].
 
 % ToDo: generate check calls for params
-add_checks(_Code, SymSubState) -> {[], SymSubState}.
+add_checks(Code, SymSubState) ->
+    Checks = remove_result_tag([iface_used_dep:used_args_for(SymSubState, Check)
+				|| Check <- iface_check:checks_for(Code), Check =/= Code]),
+    NewSymSubState = lists:foldr(fun update_symsubstate/2, SymSubState, Checks),
+    {Checks, NewSymSubState}.
 
 serialise_trace_with_state(State, Trace) ->
     {{STrace, _}, {_, _}} = serialise_trace_with_state_aux(Trace, {1, State}),

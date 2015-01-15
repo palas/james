@@ -115,8 +115,8 @@ split_diamonds(#drai{dnodes = DNodes}, NodeSet) ->
 	sets:fold(split_diamonds_fun_aux(DNodes), {sets:new(), sets:new()}, NodeSet).
 split_diamonds_fun_aux(DNodes) ->
 	fun (NodeId, {Norm, Dia}) ->
-		#diagram_node{tags = Tags} = dict:fetch(NodeId, DNodes),
-		case lists:member(diamond, Tags) of
+		#diagram_node{properties = Prop} = dict:fetch(NodeId, DNodes),
+		case lists:member(diamond, Prop) of
 			true -> {Norm, sets:add_element(NodeId, Dia)};
 			false -> {sets:add_element(NodeId, Norm), Dia}
 		end

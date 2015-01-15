@@ -108,29 +108,17 @@ remove_loops_fun(Key, #diagram_arc{is_loop = false} = Arc, Dict) ->
     dict:store(Key, Arc, Dict);
 remove_loops_fun(_, _, Dict) -> Dict.
 
-
-% 1. Pick control nodes and root nodes (in terms of data dep minus loops)
-% 2. Add to queue inverse dependencies for every root (downwards), - topological sorting
-%    in terms of OR or AND of nodes already expanded
-%    * OR for diamonds, AND for params.
-%    * When no root nodes left stop.
-% 3. Generate the functions (in terms of available node dict with bools) from dependency data.
-%    If a node is not in the dict
-% 4. Check 
-
 gen_used_dep(Drai, Path, ModuleName) ->
-   	{DepDrai, TopNodes, ControlNodes} = get_dep_data(Drai),
-	  Union = sets:union(TopNodes, ControlNodes),
+   	{DepDrai, _TopNodes, ControlNodes} = get_dep_data(Drai),
 		AllNodesDict = Drai#drai.dnodes,
-	  RestOfNodesDict = dict:filter(fun (K, _) -> not sets:is_element(K, Union) end, AllNodesDict),
+	  RestOfNodesDict = dict:filter(fun (K, _) -> not sets:is_element(K, ControlNodes) end, AllNodesDict),
 	  ControlNodesDict = dict:filter(fun (K, _) -> sets:is_element(K, ControlNodes) end, AllNodesDict),
-	  TopNodesDict = dict:filter(fun (K, _) -> sets:is_element(K, TopNodes) end, AllNodesDict),
+	  %TopNodesDict = dict:filter(fun (K, _) -> sets:is_element(K, TopNodes) end, AllNodesDict),
     ThisModuleName = atom_to_list(ModuleName) ++ "_used_dep",
-    {{[], OneOfs, Calls}, DepDrai} = dict:fold(fun gen_used_dep_aux/3, {{[], [], []}, DepDrai}, RestOfNodesDict),
+    {{Prim, OneOfs, Calls}, DepDrai} = dict:fold(fun gen_used_dep_aux/3, {{[], [], []}, DepDrai}, RestOfNodesDict),
     ControlNodesP = dict:fold(fun pack_node_info/3, [], ControlNodesDict),
-	TopNodesDictP = dict:fold(fun pack_node_info/3, [], TopNodesDict),
     file:write_file(Path ++ ThisModuleName ++ ".erl",
-		    dep_file(ModuleName, ThisModuleName, {ControlNodesP, TopNodesDictP, OneOfs, Calls})).
+		    dep_file(ModuleName, ThisModuleName, {ControlNodesP, Prim, OneOfs, Calls})).
 gen_used_dep_aux(Code, #diagram_node{properties = [ellipse|_]} = Rec, {{PrimL, OneOfsL, CallsL}, Drai}) ->
 	{{[{prim, Code, Rec, none}|PrimL], OneOfsL, CallsL}, Drai};
 gen_used_dep_aux(Code, #diagram_node{properties = [diamond|_]} = Rec, {{PrimL, OneOfsL, CallsL}, Drai}) ->
@@ -196,7 +184,9 @@ prim_funcs(ModuleName, _ThisModuleName, Prim) ->
 	[erl_syntax:clause([erl_syntax:variable("_State"),
 		erl_syntax:abstract(Code)],
 		none,
-		[erl_syntax:tuple(
+		[erl_syntax:tuple([
+			erl_syntax:atom(ok),
+			erl_syntax:tuple(
 			[erl_syntax:atom(jcall),
 				erl_syntax:atom(ModuleName),
 				erl_syntax:atom(actual_callback),
@@ -204,7 +194,7 @@ prim_funcs(ModuleName, _ThisModuleName, Prim) ->
 					[erl_syntax:abstract(Code),
 						map_abstract(template_gen:value_to_map(Val)),
 						erl_syntax:list([])])
-			])])
+			])])])
 		|| {prim, Code, #diagram_node{content = Val}, none} <- Prim].
 
 oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) -> 
@@ -227,27 +217,26 @@ oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
      || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
 call_funcs(ModuleName, _ThisModuleName, Calls) ->
 	[begin
-		 UnderscoreIfNe = (case (This) of
-												 static -> [];
-												 Else -> Else
-											 end ++ Params),
 		 erl_syntax:clause([
-			 erl_syntax:variable(underscore_if_ne("State", UnderscoreIfNe)),
+			 erl_syntax:variable("State"),
 			 erl_syntax:abstract(Code)],
 			 none,
-			 [{'case',1,
-				 {call,1,
-					 {remote,1,{atom,1,utils},{atom,1,control_add}},
-					 [{var,1,'State'},{string,1,"140"}]},
-				 [{clause,2,
-					 [{atom,2,error}],
-					 [],
-					 [{match,2,
-						 {var,2,'Params'},
+			 [erl_syntax:case_expr(
+				 erl_syntax:application(
+					 erl_syntax:atom("utils"),erl_syntax:atom("control_add"),
+					 [erl_syntax:variable("State"),erl_syntax:abstract(Code)]),
+				 [erl_syntax:clause([erl_syntax:atom(error)],
+					 none,
+					 [erl_syntax:match_expr(
+						 erl_syntax:variable("Params"),
 						 erl_syntax:tuple([this_call(This),
-							 calls_for_normal(Params)])},
-						 {call,4,
-							 {remote,4,{atom,4,utils},{atom,4,used_and}},
+							 calls_for_normal(Params)])),
+						 erl_syntax:match_expr(
+							 erl_syntax:variable("CParams"),
+							 erl_syntax:application(
+								 erl_syntax:atom("utils"), erl_syntax:atom("used_and_res"),
+								 [erl_syntax:variable("Params")])),
+						 erl_syntax:application(erl_syntax:atom("utils"),erl_syntax:atom("used_and_fix"),
 							 [erl_syntax:tuple(
 								 [erl_syntax:atom(jcall),
 									 erl_syntax:atom(ModuleName),
@@ -255,10 +244,10 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 									 erl_syntax:list(
 										 [erl_syntax:abstract(Code),
 											 map_abstract(template_gen:callback_to_map(Callback)),
-											 {var,12,'Params'}
+												 erl_syntax:variable("CParams")
 										 ])]),
-								 {var,12,'Params'}]}]},
-					 {clause,13,[{var,13,'Else'}],[],[{var,13,'Else'}]}]}])
+								 erl_syntax:variable("Params")])]),
+					 erl_syntax:clause([erl_syntax:variable("Else")],none,[erl_syntax:variable("Else")])])])
 	 end
 		|| {acall, Code, #diagram_node{content = Callback}, {This, Params}} <- Calls].
 

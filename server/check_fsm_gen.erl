@@ -44,7 +44,6 @@
 
 -export([gen_checks/3, map_abstract/1, find_checks/1]).
 
-
 -spec gen_checks(#drai{}, string(), atom()) -> atom(ok) | any().
 gen_checks(Drai, Path, ModuleName) ->
   ThisModuleName = atom_to_list(ModuleName) ++ "_check",

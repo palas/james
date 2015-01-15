@@ -52,16 +52,27 @@ callback({SymState, RawState}, Code, P) ->
 				       begin
 					   UpSymState = utils:update_symsubstate(Params, SymSubState),
 					   {CheckParams, UpSymState2} = utils:add_checks(Code, UpSymState),
-					   [{{SymSuperState + 1, UpSymState2}, RawState, [Params|CheckParams]}]
+					   [{{SymSuperState + 1, UpSymState2}, RawState,
+					     [Params|CheckParams]}]
 				       end)]}.
 
-evaluate(_, {{_, _}, RawState, [Params|_Checks]}) ->
+evaluate(_, {{_, _}, RawState, [Params|Checks]}) ->
     {RawSuperState, RawSubState} = case RawState of
 				       empty -> {1, utils:initial_state_raw()};
 				       {N, M} -> {N, M}
 				   end,
     [_Result, NewRawSubState|_Inter] = lists:reverse(eqc_symbolic:eval(utils:serialise_trace_with_state(RawSubState, Params))),
-    {RawSuperState + 1, NewRawSubState}.
+    {FinalRawSubState, _} = lists:foldr(fun evaluate_checks/2, {NewRawSubState, 1}, Checks),
+    case Checks of
+	[] -> ok;
+	_ -> io:format("* End checks~n")
+    end,
+    {RawSuperState + 1, FinalRawSubState}.
+
+evaluate_checks(Param, {RawState, N}) ->
+    io:format("* Check: ~p~n", [N]),
+    [_Result, NewRawSubState|_Inter] = lists:reverse(eqc_symbolic:eval(utils:serialise_trace_with_state(RawState, Param))),
+    {NewRawSubState, N + 1}.
 
 actual_callback(State, Code, #{obj_info := #{},
 				value := Value}, []) ->
