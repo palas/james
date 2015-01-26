@@ -93,7 +93,7 @@ replace_static(static, List) -> {static, List};
 replace_static(_Else, [This|List]) -> {This, List}.
 
 used_and_aux([error|_]) -> throw(has_error);
-used_and_aux([{ok, El}|Rest]) -> [El|used_and_res(Rest)];
+used_and_aux([{ok, El}|Rest]) -> [El|used_and_aux(Rest)];
 used_and_aux([]) -> [].
 
 used_or(List) ->
