@@ -68,7 +68,10 @@ extract_arc_info(List, AList, NodeDict) ->
 		      content = http_order
 		     }} <- AList,
 	       dict:is_key(IdEnd, NodeDict),
-	       IdOri <- dict:fetch(IdStart, ExtNodeDict)].
+	       IdOri <- case dict:find(IdStart, ExtNodeDict) of
+                    {ok, Val} -> Val;
+                    error -> []
+                  end].
 
 extract_node_info(List) ->
   NodeList = get_control_nodes(List),

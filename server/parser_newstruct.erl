@@ -43,10 +43,17 @@
 
 -export([get_drai/2, get_drai/3, gen_dia_to_files/3, gen_dia_to_files/4, list_traces/1,
 	 save_filtered_messages/2, save_filtered_messages/3, drai_to_file/2,
-	 gen_eqc/4, gen_dia_to_files_dbg/3, gen_dia_to_files_dbg/4]).
+	 gen_eqc/4, gen_eqc/5, gen_dia_to_files_dbg/3, gen_dia_to_files_dbg/4]).
 
 gen_eqc(Pid, N, Path, Module) ->
     Drai = get_drai(Pid, N),
+    gen_eqc_aux(Path, Module, Drai).
+
+gen_eqc(Pid, N, Path, Module, PreConfig) ->
+    Drai = get_drai(Pid, N, PreConfig),
+    gen_eqc_aux(Path, Module, Drai).
+
+gen_eqc_aux(Path, Module, Drai) ->
     template_gen:fun_templates(Drai, Path, Module),
     dep_fsm_gen:gen_dep(Drai, Path, Module),
     check_fsm_gen:gen_checks(Drai, Path, Module),
@@ -60,7 +67,7 @@ get_drai(Pid, N, PreConfig) ->
 			      collapse_integers = true,
 			      collapse_strings = true,
 			      single_file = true,
-			      num_of_islands = 1,
+			      num_of_islands = inf,
 			      remove_orphan_nodes = true,
             discard_calls_beginning_with = [],
             remove_nodes_up_from = []},
