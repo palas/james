@@ -739,6 +739,8 @@ contains_error_substring_aux([]) -> false;
 contains_error_substring_aux("errors" ++ _) -> false;
 contains_error_substring_aux("error" ++ _) -> true;
 contains_error_substring_aux("fail" ++ _) -> true;
+contains_error_substring_aux("duplicated" ++ _) -> true;
+contains_error_substring_aux("empty" ++ _) -> true;
 contains_error_substring_aux([_|Rest]) -> contains_error_substring_aux(Rest).
 
 depth_search_inc_in_clus(#diagram_node{cluster = ClusterN}, {Drai, Trace, Cluster})
