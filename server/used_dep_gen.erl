@@ -211,7 +211,7 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 														 map_abstract(template_gen:callback_to_map(Callback)),
 														 erl_syntax:variable("CParams")
 													 ])]),
-											 erl_syntax:variable("Params")])]),
+											 erl_syntax:variable("CParams")])]),
 								 erl_syntax:clause([erl_syntax:variable("Else")],none,[erl_syntax:variable("Else")])]);
 					 true -> erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:abstract(this)])
 				 end])
