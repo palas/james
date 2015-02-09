@@ -108,10 +108,12 @@ remove_result_tag([]) -> [].
 
 % ToDo: generate check calls for params
 add_checks(Code, SymSubState) ->
-    Checks = remove_result_tag([iface_used_dep:used_args_for(SymSubState, Check)
-				|| Check <- iface_check:checks_for(Code), Check =/= Code]),
-    NewSymSubState = lists:foldr(fun update_symsubstate/2, SymSubState, Checks),
-    {Checks, NewSymSubState}.
+    ?LET(Checks, remove_result_tag([iface_used_dep:used_args_for(SymSubState, Check)
+				    || Check <- iface_check:checks_for(Code), Check =/= Code]),
+	 begin
+	     NewSymSubState = lists:foldr(fun update_symsubstate/2, SymSubState, Checks),
+	     {Checks, NewSymSubState}
+	 end).
 
 serialise_trace_with_state(State, Trace) ->
     {{STrace, _}, {_, _}} = serialise_trace_with_state_aux(Trace, {1, State}),

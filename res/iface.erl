@@ -51,12 +51,12 @@ callback({SymState, RawState}, Code, P) ->
     {call, iface, evaluate, [Code|?LET(Params, P,
 				       begin
 					   UpSymState = utils:update_symsubstate(Params, SymSubState),
-					   {CheckParams, UpSymState2} = utils:add_checks(Code, UpSymState),
-					   [{{SymSuperState + 1, UpSymState2}, RawState,
-					     [Params|CheckParams]}]
+					   ?LET({CheckParams, UpSymState2}, utils:add_checks(Code, UpSymState),
+						[{{SymSuperState + 1, UpSymState2}, RawState,
+						  [Params|CheckParams]}])
 				       end)]}.
 
-evaluate(_, {{_, _}, RawState, [Params|Checks]}) ->
+evaluate(_, {_SymState, RawState, [Params|Checks]}) ->
     {RawSuperState, RawSubState} = case RawState of
 				       empty -> io:format("~n"),
 						{1, utils:initial_state_raw()};
