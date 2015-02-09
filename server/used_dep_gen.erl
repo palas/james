@@ -9,7 +9,7 @@
 %%%-------------------------------------------------------------------
 %%% All rights reserved.
 %%%
-%%% Redistribution and use in source and binary forms, with or without
+%%% Redistribution and use in source and binary forms, with or without268
 %%% modification, are permitted provided that the following conditions
 %%% are met:
 %%%
@@ -83,10 +83,12 @@ gen_used_dep(Drai, Path, ModuleName) ->
 		    dep_file(ModuleName, ThisModuleName, {ControlNodesP, Prim, OneOfs, Calls})).
 gen_used_dep_aux(Code, #diagram_node{properties = [ellipse|_]} = Rec, {{PrimL, OneOfsL, CallsL}, Drai}) ->
 	{{[{prim, Code, Rec, none}|PrimL], OneOfsL, CallsL}, Drai};
-gen_used_dep_aux(Code, #diagram_node{properties = [diamond|_]} = Rec, {{PrimL, OneOfsL, CallsL}, Drai}) ->
+gen_used_dep_aux(Code, #diagram_node{properties = [diamond|_]} = Rec,
+		 {{PrimL, OneOfsL, CallsL}, Drai}) ->
     {{PrimL, [{oneOf, Code, Rec, parents_codes(Code, Drai, diamond)}|OneOfsL], CallsL}, Drai};
-gen_used_dep_aux(Code, #diagram_node{properties = [rectangle|_]} = Rec, {{PrimL, OneOfsL, CallsL}, Drai}) ->
-    {{PrimL, OneOfsL, [{acall, Code, Rec, parents_codes(Code, Drai, normal)}|CallsL]}, Drai}.
+gen_used_dep_aux(Code, #diagram_node{properties = [rectangle|_], content = #callback{params = CPList, this = CThis}} = Rec,
+		 {{PrimL, OneOfsL, CallsL}, Drai}) ->
+    {{PrimL, OneOfsL, [{acall, Code, Rec, parents_codes(Code, Drai, normal), {CPList, CThis}}|CallsL]}, Drai}.
 pack_node_info(Code, Rec, List) -> [{control, Code, Rec, none}|List].
 
 parents_codes(Code, Drai, Mode) ->
@@ -160,63 +162,75 @@ prim_funcs(ModuleName, _ThisModuleName, Prim) ->
 		|| {prim, Code, #diagram_node{content = Val}, none} <- Prim].
 
 oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) -> 
-    [erl_syntax:clause([
-			erl_syntax:variable(utils:underscore_if_ne("State", PNodes)),
+    [erl_syntax:clause([erl_syntax:variable(utils:underscore_if_ne("State", PNodes)),
 			erl_syntax:abstract(Code)],
-			none,
-			[case lists:map(fun ({_, X}) -> X end, PNodes) of
-			 [] -> erl_syntax:atom(error);
-			 PNodesFix ->
-				 erl_syntax:application(erl_syntax:atom(utils), erl_syntax:atom(used_or),
-				 [erl_syntax:list_comp(
-						 	erl_syntax:application(
-								erl_syntax:atom(used_args_for),
-								 [erl_syntax:variable("State"),erl_syntax:variable("Node")]),
-							 [erl_syntax:generator(
-								 erl_syntax:variable("Node"),
-								 erl_syntax:abstract(PNodesFix))])])
-			 end])
+		       none,
+		       [case lists:map(fun ({_, X}) -> X end, PNodes) of
+			    [] -> erl_syntax:atom(error);
+			    PNodesFix ->
+				erl_syntax:application(erl_syntax:atom(utils), erl_syntax:atom(used_or),
+						       [erl_syntax:list_comp(
+							  erl_syntax:application(
+							    erl_syntax:atom(used_args_for),
+							    [erl_syntax:variable("State"),erl_syntax:variable("Node")]),
+							  [erl_syntax:generator(
+							     erl_syntax:variable("Node"),
+							     erl_syntax:abstract(PNodesFix))])])
+			end])
      || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
+
+check_sig({A, _}, {B, _}) when (is_list(A) andalso is_atom(B)) ->
+    false;
+check_sig({A, _}, {B, _}) when (is_atom(A) andalso is_tuple(B)) ->
+    false;
+check_sig({_, A}, {_, B}) when (length(A) =/= length(B)) ->
+    false;
+check_sig({_Params, _This}, {_EParams, _EThis}) ->
+    true.
 call_funcs(ModuleName, _ThisModuleName, Calls) ->
 	[begin
-		 IsThis = lists:member(this, Node#diagram_node.tags),
-		 erl_syntax:clause([
-			 erl_syntax:variable(utils:underscore_if_true("State", IsThis)),
-			 erl_syntax:abstract(Code)],
-			 none,
-			 [case IsThis of
-					 false ->
-						 erl_syntax:case_expr(
-							 erl_syntax:application(
-								 erl_syntax:atom("utils"),erl_syntax:atom("control_add"),
-								 [erl_syntax:variable("State"),erl_syntax:abstract(Code)]),
-							 [erl_syntax:clause([erl_syntax:atom(error)],
-								 none,
-								 [erl_syntax:match_expr(
-									 erl_syntax:variable("Params"),
-									 erl_syntax:tuple([this_call(This),
-										 calls_for_normal(Params)])),
-									 erl_syntax:match_expr(
-										 erl_syntax:variable("CParams"),
-										 erl_syntax:application(
-											 erl_syntax:atom("utils"), erl_syntax:atom("used_and_res"),
-											 [erl_syntax:variable("Params")])),
-									 erl_syntax:application(erl_syntax:atom("utils"),erl_syntax:atom("used_and_fix"),
+	     IsThis = lists:member(this, Node#diagram_node.tags),
+	     SigOk = check_sig({This, Params}, {EParams, EThis}),
+	     erl_syntax:clause(
+	       [erl_syntax:variable(utils:underscore_if_true("State", IsThis orelse (not SigOk))),
+		erl_syntax:abstract(Code)],
+	       none,
+	       [case IsThis of
+		    false ->
+			case SigOk of
+			    true -> erl_syntax:case_expr(
+				      erl_syntax:application(
+					erl_syntax:atom("utils"),erl_syntax:atom("control_add"),
+					[erl_syntax:variable("State"),erl_syntax:abstract(Code)]),
+				      [erl_syntax:clause([erl_syntax:atom(error)],
+							 none,
+							 [erl_syntax:match_expr(
+							    erl_syntax:variable("Params"),
+							    erl_syntax:tuple([this_call(This),
+									      calls_for_normal(Params)])),
+							  erl_syntax:match_expr(
+							    erl_syntax:variable("CParams"),
+							    erl_syntax:application(
+							      erl_syntax:atom("utils"), erl_syntax:atom("used_and_res"),
+							      [erl_syntax:variable("Params")])),
+							  erl_syntax:application(erl_syntax:atom("utils"),erl_syntax:atom("used_and_fix"),
 										 [erl_syntax:tuple(
-											 [erl_syntax:atom(jcall),
-												 erl_syntax:atom(ModuleName),
-												 erl_syntax:atom(actual_callback),
-												 erl_syntax:list(
-													 [erl_syntax:abstract(Code),
-														 map_abstract(template_gen:callback_to_map(Callback)),
-														 erl_syntax:variable("CParams")
-													 ])]),
-											 erl_syntax:variable("CParams")])]),
-								 erl_syntax:clause([erl_syntax:variable("Else")],none,[erl_syntax:variable("Else")])]);
-					 true -> erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:abstract(this)])
-				 end])
+										    [erl_syntax:atom(jcall),
+										     erl_syntax:atom(ModuleName),
+										     erl_syntax:atom(actual_callback),
+										     erl_syntax:list(
+										       [erl_syntax:abstract(Code),
+											map_abstract(template_gen:callback_to_map(Callback)),
+											erl_syntax:variable("CParams")
+										       ])]),
+										  erl_syntax:variable("CParams")])]),
+				       erl_syntax:clause([erl_syntax:variable("Else")],none,[erl_syntax:variable("Else")])]);
+			    false -> erl_syntax:atom(error)
+			end;
+		    true -> erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:abstract(this)])
+		end])
 	 end
-		|| {acall, Code, (#diagram_node{content = Callback} = Node), {This, Params}} <- Calls].
+	 || {acall, Code, (#diagram_node{content = Callback} = Node), {This, Params}, {EThis, EParams}} <- Calls].
 
 this_call(List) when is_list(List) -> calls_for(List);
 this_call(Else) -> erl_syntax:abstract(Else).
