@@ -187,7 +187,11 @@ get_tran_prop_and_dmn(#diagram_arc{id_end = DestId,
 		      #drai{dnodes = DNodes}) ->
     {Prop, get_node_prop(dict:fetch(DestId, DNodes)), Content}.
 
-get_node_prop(#diagram_node{label = Label, cluster = Cluster, class = Class}) -> {Label, Cluster, Class}.
+get_node_prop(#diagram_node{label = Label, cluster = Cluster, class = Class,
+			    content = #callback{method_signature = MS}}) ->
+    {Label, Cluster, Class, MS};
+get_node_prop(#diagram_node{label = Label, cluster = Cluster, class = Class}) ->
+    {Label, Cluster, Class}.
 
 generate_diamonds_in_drai(#drai{dnodes = DNodes,
 		                darcs = DArcs} = Drai) ->

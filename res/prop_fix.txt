@@ -1,0 +1,16 @@
+
+prop_iface() ->
+    ?FORALL(Cmds, (commands(?MODULE)),
+	    ?ONCEONLY(begin
+			  TestNum = case get(iface) of
+					undefined -> 1;
+					Else -> Else
+				    end,
+			  put(iface, TestNum + 1),
+			  io:format("@Test~npublic void testGenerated~p() throws Exception {~n", [TestNum]),
+			  {_History, S, Res} = run_commands(?MODULE, Cmds),
+			  cleanup(S),
+			  io:format("}~n"),
+			  Res == ok
+		      end)).
+
