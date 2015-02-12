@@ -79,17 +79,20 @@ actual_callback(State, Code, #{obj_info := #{},
 			       type := Type,
 			       value := Value}, []) ->
     Num = utils:get_num_var_raw(State),
-    Result = {jvar, Num},
-    io:format("~s ~s = ~p;~n", [type_to_java(Type), name_for(Result), Value]),
+    Result = case Type of
+		 null -> {jvar, Num, is_null};
+		 _ -> {jvar, Num}
+	     end,
+    io:format("~s ~s = ~p;~n", [type_to_java(Type), name_for({Result, no_cast}), Value]),
     {utils:add_result_to_state_raw(Code, State, Result), Result};
 actual_callback(State, Code, #{class_signature := ClassSignature,
-			       method_name := "<init>"}, {static, ParamList}) ->
+			       method_name := "<init>",
+			       method_signature := Signature}, {static, ParamList}) ->
     Result = {jvar, utils:get_num_var_raw(State)},
     io:format("~s ~s = new ~s(~s);~n", [class_to_normal_notation(ClassSignature),
-					 name_for(Result),
+					 name_for({Result, no_cast}),
 					 class_to_normal_notation(ClassSignature),
-					 list_to_commasep_str(
-					   lists:map(fun name_for/1, ParamList))]),
+					 mk_param_list(ParamList,Signature)]),
     {utils:add_result_to_state_raw(Code, State, Result), Result};
 actual_callback(State, Code, #{class_signature := ClassSignature,
 			       method_name := Name,
@@ -99,14 +102,12 @@ actual_callback(State, Code, #{class_signature := ClassSignature,
     case Ret of
 	"void" -> io:format("~s.~s(~s);~n",
 			    [class_to_normal_notation(ClassSignature),
-			    Name, list_to_commasep_str(
-				    lists:map(fun name_for/1, ParamList))]);
+			    Name, mk_param_list(ParamList,Signature)]);
 	_ -> io:format("~s ~s = ~s.~s(~s);~n",
 		       [Ret,
-			name_for(Result),
+			name_for({Result, no_cast}),
 			class_to_normal_notation(ClassSignature),
-			Name, list_to_commasep_str(
-				lists:map(fun name_for/1, ParamList))])
+			Name, mk_param_list(ParamList,Signature)])
     end,
     {utils:add_result_to_state_raw(Code, State, Result), Result};
 actual_callback(State, Code, #{method_name := Name,
@@ -114,13 +115,11 @@ actual_callback(State, Code, #{method_name := Name,
     Result = {jvar, utils:get_num_var_raw(State)},
     Ret = return_from_sig(Signature),
     case Ret of
-	"void" -> io:format("~s.~s(~s);~n", [name_for(This), Name,
-			    list_to_commasep_str(
-			      lists:map(fun name_for/1, ParamList))]);
+	"void" -> io:format("~s.~s(~s);~n", [name_for({This, no_cast}), Name,
+					     mk_param_list(ParamList,Signature)]);
 	_ -> io:format("~s ~s = ~s.~s(~s);~n",
-		       [Ret, name_for(Result), name_for(This), Name,
-			list_to_commasep_str(
-			  lists:map(fun name_for/1, ParamList))])
+		       [Ret, name_for({Result, no_cast}), name_for({This, no_cast}), Name,
+			mk_param_list(ParamList,Signature)])
     end,
     {utils:add_result_to_state_raw(Code, State, Result), Result};
 actual_callback(State, Code, Rec, ParamList) ->
@@ -129,6 +128,29 @@ actual_callback(State, Code, Rec, ParamList) ->
     Result = {jvar, utils:get_num_var_raw(State)},
     io:format("Result: ~p~n~n", [Result]),
     {utils:add_result_to_state_raw(Code, State, Result), Result}.
+
+mk_param_list(ParamList,Signature) ->
+    list_to_commasep_str(
+      lists:map(fun name_for/1,
+		lists:zip(ParamList,
+			  get_param_types(Signature)))).
+
+get_param_types([$(|List]) -> get_param_types(List);
+get_param_types([$)|_]) -> [];
+get_param_types(List) ->
+    case get_param_types_aux(List) of
+	{Result, RemList} -> [Result|get_param_types(RemList)]
+    end.
+
+get_param_types_aux([$L|Rest]) ->
+    {Class, [_|Remaining]} = lists:splitwith(diffrom($;), Rest),
+    {class_to_normal_notation([$L|Class] ++ ";"), Remaining};
+get_param_types_aux([$[|Rest]) ->
+    {_, Remaining} = get_param_types_aux(Rest),
+    {null, Remaining}; % We return null because arrays are not implemented
+get_param_types_aux([Char|Rest]) ->
+    {class_to_normal_notation([Char]), Rest}.
+
 
 return_from_sig(String) ->
     class_to_normal_notation(tl(lists:dropwhile(diffrom($)), String))).
@@ -148,8 +170,11 @@ type_to_java(char) -> "char";
 type_to_java(short) -> "short";
 type_to_java(long) -> "long".
 
-name_for(this) -> "this";
-name_for({jvar, Num}) -> "var" ++ integer_to_list(Num).
+name_for({this, _}) -> "this";
+name_for({{jvar, Num, is_null}, Cast}) when Cast =/= no_cast ->
+    "(" ++ Cast ++ ") var" ++ integer_to_list(Num);
+name_for({{jvar, Num}, _}) -> "var" ++ integer_to_list(Num);
+name_for({{jvar, Num, is_null}, _}) -> "var" ++ integer_to_list(Num).
 
 class_to_normal_notation([]) -> [];
 class_to_normal_notation([$B]) -> "byte";
