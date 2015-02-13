@@ -45,7 +45,8 @@
 	 add_result_to_state_sym/2, get_instances_of_sym/3, get_num_var_sym/1,
 	 initial_state_raw/0, add_result_to_state_raw/3, get_instance_of_raw/2,
 	 get_instance_of_raw_aux/2, get_num_var_raw/1, add_checks/2, control_add/2,
-	 used_and_res/1, used_and_fix/2, used_or/1, remove_result_tag/1]).
+	 used_and_res/1, used_and_fix/2, used_or/1, remove_result_tag/1,
+	 add_weights/3]).
 
 
 % Symbolic state accessors
@@ -99,12 +100,17 @@ used_and_aux([]) -> [].
 used_or(List) ->
     case remove_result_tag(List) of
 	[] -> error;
-	Else -> {ok, oneof(Else)}
+	Else -> {ok, frequency(Else)}
     end.
 
 remove_result_tag([{ok, Sth}|Rest]) -> [Sth|remove_result_tag(Rest)];
 remove_result_tag([error|Rest]) -> remove_result_tag(Rest);
 remove_result_tag([]) -> [].
+
+add_weights(_State, _Node, error) -> error;
+add_weights(State, Node, {ok, Val}) ->
+    Weight = 1 + length(get_instances_of_sym(Node, State, dummy)),
+    {ok, {Weight, Val}}.
 
 % ToDo: generate check calls for params
 add_checks(Code, SymSubState) ->
