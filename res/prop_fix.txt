@@ -14,3 +14,16 @@ prop_iface() ->
 			  Res == ok
 		      end)).
 
+
+has_method(Method, Tuple) when is_tuple(Tuple) ->
+    has_method(Method, tuple_to_list(Tuple));
+has_method(Method, [Head|Tail]) ->
+    has_method(Method, Head) orelse has_method(Method, Tail);
+has_method(Method, #{method_name := Method}) -> true;
+has_method(_, _) -> false.
+
+filtered_commands(Module) ->
+    ?SUCHTHAT(
+       Cmds,
+       commands(Module),
+       has_method("updateDevice", Cmds)).
