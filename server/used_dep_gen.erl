@@ -169,20 +169,23 @@ oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
 			    [] -> erl_syntax:atom(error);
 			    PNodesFix ->
 				erl_syntax:application(erl_syntax:atom(utils), erl_syntax:atom(used_or),
-						       [erl_syntax:list_comp(
-							  erl_syntax:application(
-							    erl_syntax:atom(utils),
-							    erl_syntax:atom(add_weights),
-							    [erl_syntax:variable("State"),
-							     erl_syntax:variable("Node"),
+						       [erl_syntax:application(
+							  erl_syntax:atom(utils),
+							  erl_syntax:atom(normalise_weights),
+							  [erl_syntax:list_comp(
 							     erl_syntax:application(
-							      erl_syntax:atom(used_args_for),
-							      [erl_syntax:variable("State"),erl_syntax:variable("Node")])]),
-							  [erl_syntax:generator(
-							     erl_syntax:variable("Node"),
-							     erl_syntax:abstract(PNodesFix))])])
-			end])
-     || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
+							       erl_syntax:atom(utils),
+							       erl_syntax:atom(add_weights),
+							       [erl_syntax:variable("State"),
+								erl_syntax:variable("Node"),
+								erl_syntax:application(
+								  erl_syntax:atom(used_args_for),
+								  [erl_syntax:variable("State"),erl_syntax:variable("Node")])]),
+							     [erl_syntax:generator(
+								erl_syntax:variable("Node"),
+								erl_syntax:abstract(PNodesFix))])])])
+						       end])
+		       || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
 
 check_sig({A, _}, {B, _}) when (is_list(A) andalso is_atom(B)) ->
     false;

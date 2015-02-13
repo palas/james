@@ -46,7 +46,7 @@
 	 initial_state_raw/0, add_result_to_state_raw/3, get_instance_of_raw/2,
 	 get_instance_of_raw_aux/2, get_num_var_raw/1, add_checks/2, control_add/2,
 	 used_and_res/1, used_and_fix/2, used_or/1, remove_result_tag/1,
-	 add_weights/3]).
+	 add_weights/3, normalise_weights/1]).
 
 
 % Symbolic state accessors
@@ -57,6 +57,11 @@ get_instances_of_sym(Code, {_N, Dict}, _RawState) ->
     case dict:find(Code, Dict) of
 	{ok, List} -> [{jcall, ?MODULE, get_instance_of_raw_aux, [Entry]} || Entry <- List];
 	error -> []
+    end.
+get_last_instance_num_of_sym(Code, {_N, Dict}) ->
+    case dict:find(Code, Dict) of
+	{ok, List} -> lists:max(List);
+	error -> 0
     end.
 get_num_var_sym({N, _}) -> N.
 % Raw state accessors
@@ -109,8 +114,38 @@ remove_result_tag([]) -> [].
 
 add_weights(_State, _Node, error) -> error;
 add_weights(State, Node, {ok, Val}) ->
-    Weight = 1 + length(get_instances_of_sym(Node, State, dummy)),
+    Weight = get_last_instance_num_of_sym(Node, State),
     {ok, {Weight, Val}}.
+
+normalise_weights(List) ->
+    SrtList = lists:sort(fun weight_sort_criteria/2, List),
+    {Ok, Errors} = lists:splitwith(fun is_ok/1, SrtList),
+    {NotZero, Zero} = lists:splitwith(fun is_not_zero/1, Ok),
+    NormalisedNotZero = normalise_not_zero(NotZero),
+    BiasedZero = bias_zero(Zero),
+    NormalisedNotZero ++ BiasedZero ++ Errors.
+
+weight_sort_criteria(error, _) -> false;
+weight_sort_criteria(_, error) -> true;
+weight_sort_criteria({ok, {0, _}}, _) -> false;
+weight_sort_criteria(_, {ok, {0, _}}) -> true;
+weight_sort_criteria({ok, {N, _}}, {ok, {M, _}}) when N =< M -> false;
+weight_sort_criteria(_, _) -> true.
+
+is_ok({ok, _}) -> true;
+is_ok(_) -> false.
+
+is_not_zero({ok, {0, _}}) -> false;
+is_not_zero(_) -> true.
+
+normalise_not_zero(List) ->
+    Elems = length(List),
+    ZippedList = lists:zip(lists:reverse(lists:seq(1, Elems)), List),
+    [{ok, {((Pos * 10) div Elems) + 30, Val}} || {Pos, {ok, {_, Val}}} <- ZippedList].
+
+bias_zero(List) ->
+    [{ok, {10, Val}} || {ok, {0, Val}} <- List].
+
 
 % ToDo: generate check calls for params
 add_checks(Code, SymSubState) ->
