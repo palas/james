@@ -73,6 +73,8 @@ get_arc_to(#diagram_arc{id_end = Id}) -> Id.
 
 mk_filter_plus_to(Drai, Filter) ->
 	fun (Id, Set) -> filter_plus_to(Filter, dict:fetch(Id, Drai#drai.darcs), Set) end.
+mk_filter_plus_from(Drai, Filter) ->
+	fun (Id, Set) -> filter_plus_from(Filter, dict:fetch(Id, Drai#drai.darcs), Set) end.
 
 filter_plus_to(Filter, Arc, Set) ->
 	case Filter(Arc) of
@@ -80,9 +82,17 @@ filter_plus_to(Filter, Arc, Set) ->
 		false -> Set
 	end.
 
+filter_plus_from(Filter, Arc, Set) ->
+	case Filter(Arc) of
+		true -> sets:add_element(get_arc_from(Arc), Set);
+		false -> Set
+	end.
+
 is_data_dep(#diagram_arc{content = this}) -> true;
 is_data_dep(#diagram_arc{content = {param, _}}) -> true;
 is_data_dep(_) -> false.
+
+is_control_dep(Arc) -> not is_data_dep(Arc).
 
 get_node_by_id(NodeId, #drai{dnodes = DNodes}) -> dict:find(NodeId, DNodes).
 get_nodes_by_ids([], _Drai) -> [];
@@ -101,6 +111,10 @@ expand_nodes_once(NodeSet, Drai) ->
 expand_nodes_down_wt_arcfilter(Filter, NodeSet, #drai{arcsf = FromTo} = Drai) ->
 	sets:fold(mk_filter_plus_to(Drai, Filter), sets:new(),
 		utils:expand_set_through_idx(NodeSet, FromTo)).
+
+expand_nodes_up_wt_arcfilter(Filter, NodeSet, #drai{arcst = ToFrom} = Drai) ->
+	sets:fold(mk_filter_plus_from(Drai, Filter), sets:new(),
+		utils:expand_set_through_idx(NodeSet, ToFrom)).
 
 expand_nodes_down(NodeSet, #drai{arcsf = FromTo} = Drai) ->
     utils:sets_map(create_arc_solver(fun get_arc_to/1, Drai),
@@ -597,13 +611,54 @@ expand_nodes_within_cluster(Drai, NodeList) ->
 % We keep an alternative dict with parent -> child dict (Deps) and a set of covered nodes (Deps)
 -spec expand_cluster(#drai{}, [#diagram_node{}]) -> {sets:set(string()), dict:dict(string(), sets:set(string()))}.
 expand_cluster(Drai, NodeList) ->
-  expand_cluster_aux(Drai, NodeList, sets:from_list(get_nod_ids(NodeList)), dict:new()).
+    expand_cluster_aux(Drai, NodeList,
+		       sets:from_list(get_nod_ids(NodeList)),
+		       dict:new()).
 expand_cluster_aux(_Drai, [], Nodes, Deps) -> {Nodes, Deps};
 expand_cluster_aux(Drai, [#diagram_node{id = Id} = Node|Rest], Nodes, Deps) ->
 	ValidChildren = expand_cluster_expand_one_aux(Drai, Id, Nodes, get_cluster_id(Node)),
 	NewDeps = add_to_deps(Id, ValidChildren, Deps),
 	NewNodes = sets:union(Nodes, ValidChildren),
 	expand_cluster_aux(Drai, resolve_ids(Drai, sets:to_list(ValidChildren)) ++ Rest, NewNodes, NewDeps).
+
+sort_topologically(Drai, LNodes) ->
+    InitNodes = get_init_control_nodes(Drai),
+    List = lists:concat(advance_control_nodes(Drai, InitNodes)),
+    sort_using_list(LNodes, List).
+
+sort_using_list(LNodes, List) ->
+    Order = dict:from_list(lists:zip(List, lists:seq(1, length(List)))),
+    utils:sort_using(fun (Node) -> dict:fetch(get_nod_id(Node), Order) end, LNodes).
+
+get_init_control_nodes(#drai{dnodes = DNodes} = Drai) ->
+    sets:from_list(dict:fetch_keys(
+		     dict:filter(fun(_, Val) -> is_init_control_node(Drai, Val) end,
+				 DNodes))).
+%% fetch_values(Dict) ->
+%%     sets:from_list(element(2, lists:unzip(dict:to_list(Dict)))).
+
+is_init_control_node(Drai, #diagram_node{id = Id} = Node) ->
+    Nodes = expand_nodes_up_wt_arcfilter(fun is_control_dep/1,
+						sets:from_list([Id]),
+						Drai),
+    is_control_node(Node) andalso
+	(sets:size(Nodes) =:= 0).
+
+advance_control_nodes(Drai, Nodes) ->
+    [sets:to_list(Nodes)|advance_control_nodes_aux(Drai, Nodes, Nodes)].
+
+advance_control_nodes_aux(Drai, Nodes, Seen) ->
+    NewNodes = advance_control_nodes_once(Drai, Nodes),
+    OriginalNodes = sets:subtract(NewNodes, Seen),
+    case sets:size(OriginalNodes) of
+	0 -> [];
+	_ -> [sets:to_list(OriginalNodes)|
+	      advance_control_nodes_aux(Drai, OriginalNodes, sets:union(Seen, NewNodes))]
+    end.
+
+advance_control_nodes_once(Drai, Node) ->
+    dia_utils:expand_diamonds_down(
+      Drai, expand_nodes_down_wt_arcfilter(fun is_control_dep/1, Node, Drai)).
 
 % We merge the list of tuples into a single tuple
 % Tuples have { (set of covered nodes), (dict of parent -> child relations dict(id, set(ids)))
@@ -615,18 +670,18 @@ merge_results_aux({Set1, Dict1}, {Set2, Dict2}) ->
 % We find children nodes that are not in the set and are in the same cluster as the parent
 -spec expand_cluster_expand_one_aux(#drai{}, string(), sets:set(string()), any()) -> sets:set(string()).
 expand_cluster_expand_one_aux(Drai, Id, Nodes, Cluster) ->
-	RawChildrenSet = dia_utils:expand_diamonds_down(Drai, dia_utils:expand_nodes_down(sets:from_list([Id]), Drai)),
-	ChildrenSet = sets:subtract(RawChildrenSet, Nodes),
-	sets:filter(fun_in_cluster(Drai, Cluster), ChildrenSet).
+    RawChildrenSet = dia_utils:expand_diamonds_down(Drai, dia_utils:expand_nodes_down(sets:from_list([Id]), Drai)),
+    ChildrenSet = sets:subtract(RawChildrenSet, Nodes),
+    sets:filter(fun_in_cluster(Drai, Cluster), ChildrenSet).
 
 % Produces a function that takes a node id and returns true iif the node is in the cluster Cluster
 -spec fun_in_cluster(#drai{}, any()) -> fun((string()) -> (boolean())).
 fun_in_cluster(Drai, Cluster) ->
-	fun (Id) -> case dict:find(Id, Drai#drai.dnodes) of
-								{ok, Node} -> get_cluster_id(Node) =:= Cluster;
-		            _ -> false
-							end
-	end.
+    fun (Id) -> case dict:find(Id, Drai#drai.dnodes) of
+		    {ok, Node} -> get_cluster_id(Node) =:= Cluster;
+		    _ -> false
+		end
+    end.
 
 % Adds the set of ValidChildren to the dict of (parent -> set(children)), where both parent and children are nodeIds
 -spec add_to_deps(string(), sets:set(string()), dict:dict(string(), sets:set(string()))) -> dict:dict(string(), sets:set(string())).
@@ -697,7 +752,8 @@ set_arc_thick_and_mark_loop(#diagram_arc{properties = List} = Arc) ->
 
 generate_subgraphs(#drai{dnodes = DNodes} = Drai) ->
     {_ClusterD, BaseClusterNodesSet, DNodes2} = dict:fold(fun get_base_cluster_nodes/3, {dict:new(), sets:new(), DNodes}, DNodes),
-    {NewDrai,_,_} = sets:fold(fun depth_search_inc_in_clus/2, {Drai#drai{dnodes = DNodes2}, [], no}, BaseClusterNodesSet),
+    {NewDrai,_,_} = lists:foldl(fun depth_search_inc_in_clus/2, {Drai#drai{dnodes = DNodes2}, [], no},
+				lists:reverse(sort_topologically(Drai, sets:to_list(BaseClusterNodesSet)))),
     sets:fold(fun find_class/2, NewDrai, BaseClusterNodesSet).
 
 -spec find_class(#diagram_node{}, #drai{}) -> #drai{}.
