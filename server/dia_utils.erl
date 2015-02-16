@@ -53,7 +53,7 @@
 	 move_returns/3, get_arcs_up/2, generate_subgraphs/1, print_nodeids/1,
 	 expand_nodes_within_cluster/2, resolve_ids/2, get_cluster_id/1,
 	 expand_diamonds_down/2, is_data_dep/1, get_top_nodes/1,
-	 get_control_nodes/1, set_this_node/2]).
+	 get_control_nodes/1, set_this_node/2, is_usage_dep/1]).
 
 %% Low level diagram record interface functions
 %% ============================================
@@ -92,7 +92,11 @@ is_data_dep(#diagram_arc{content = this}) -> true;
 is_data_dep(#diagram_arc{content = {param, _}}) -> true;
 is_data_dep(_) -> false.
 
-is_control_dep(Arc) -> not is_data_dep(Arc).
+is_control_dep(#diagram_arc{content = http_order}) -> true;
+is_control_dep(_) -> false.
+
+is_usage_dep(#diagram_arc{content = {usage, _}}) -> true;
+is_usage_dep(_) -> false.
 
 get_node_by_id(NodeId, #drai{dnodes = DNodes}) -> dict:find(NodeId, DNodes).
 get_nodes_by_ids([], _Drai) -> [];
@@ -670,7 +674,8 @@ merge_results_aux({Set1, Dict1}, {Set2, Dict2}) ->
 % We find children nodes that are not in the set and are in the same cluster as the parent
 -spec expand_cluster_expand_one_aux(#drai{}, string(), sets:set(string()), any()) -> sets:set(string()).
 expand_cluster_expand_one_aux(Drai, Id, Nodes, Cluster) ->
-    RawChildrenSet = dia_utils:expand_diamonds_down(Drai, dia_utils:expand_nodes_down(sets:from_list([Id]), Drai)),
+    RawChildrenSet = dia_utils:expand_diamonds_down(Drai,
+      expand_nodes_down_wt_arcfilter(fun is_data_dep/1, sets:from_list([Id]), Drai)),
     ChildrenSet = sets:subtract(RawChildrenSet, Nodes),
     sets:filter(fun_in_cluster(Drai, Cluster), ChildrenSet).
 
@@ -758,7 +763,7 @@ generate_subgraphs(#drai{dnodes = DNodes} = Drai) ->
 
 -spec find_class(#diagram_node{}, #drai{}) -> #drai{}.
 find_class(#diagram_node{id = NodeId, cluster = Cluster, tags = Tags} = Node, #drai{dnodes = DNodes} = Drai) ->
-	ChildNodes = dia_utils:expand_nodes_down(sets:from_list([NodeId]), Drai),
+	ChildNodes = expand_nodes_down_wt_arcfilter(fun is_data_dep/1, sets:from_list([NodeId]), Drai),
 	NamesAndNodes = get_method_names([], Cluster, ChildNodes, Drai),
 	{Class, NewDNodes} = compute_class_and_set_for_children(NamesAndNodes, Tags, DNodes),
 	Drai#drai{dnodes = dict:store(NodeId, Node#diagram_node{class = Class}, NewDNodes)}.
@@ -769,7 +774,7 @@ get_method_names(MNList, Cluster, NodeSet, Drai) ->
 		_ -> {NodeIdSet, ListOfMethodNames, _} =
 			 lists:foldl(fun get_method_names_aux/2, {sets:new(), MNList, Cluster},
 				     get_nodes_by_ids(sets:to_list(NodeSet), Drai)),
-		     get_method_names(ListOfMethodNames, Cluster, expand_nodes_down(NodeIdSet, Drai), Drai)
+		     get_method_names(ListOfMethodNames, Cluster, expand_nodes_down_wt_arcfilter(fun is_data_dep/1, NodeIdSet, Drai), Drai)
 	end.
 
 get_method_names_aux(#diagram_node{id = Id, cluster = Cluster, http_request = no,
@@ -813,7 +818,7 @@ depth_search_inc_in_clus(#diagram_node{id = NodeId, cluster = ClusterN} = Node,
 				  no -> ClusterN;
 				  Else -> Else
 			  end,
-    NodeDownIdSet = dia_utils:expand_nodes_down(sets:from_list([NodeId]), Drai),
+    NodeDownIdSet = expand_nodes_down_wt_arcfilter(fun is_data_dep/1, sets:from_list([NodeId]), Drai),
     NodeDownSet = sets:from_list(get_nodes_by_ids(sets:to_list(NodeDownIdSet), Drai)),
 	case sets:size(NodeDownIdSet) of
 		0 -> {add_to_cluster(NewTrace, Cluster, Drai), Trace, ClusterAc};

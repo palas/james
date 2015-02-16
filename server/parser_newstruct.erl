@@ -69,8 +69,8 @@ get_drai(Pid, N, PreConfig) ->
 			      single_file = true,
 			      num_of_islands = inf,
 			      remove_orphan_nodes = true,
-            discard_calls_beginning_with = [],
-            remove_nodes_up_from = []},
+			      discard_calls_beginning_with = [],
+			      remove_nodes_up_from = []},
     {ONodes, OArcs} = filter_and_gen_dia(fetch_traces(Pid, N), Config),
     [{Nodes, Arcs}] = combinator:combinate(ONodes, OArcs, Config),
     dia_utils:create_drai(Nodes, Arcs).
@@ -100,12 +100,12 @@ make_diagram(List, Config) ->
      || {Nodes, Arcs} <- combinator:combinate(ONodes, OArcs, Config)].
 
 filter_and_gen_dia(List, Config) ->
-    gen_diagram(filter_non_important(List, Config)).
+    gen_diagram(filter_non_important(List, Config), Config).
 
 list_traces(Pid) ->
     Traces = get_traces(Pid),
     [{N, length(List)} ||
-	 {N, {_, List}} <- lists:zip(lists:seq(1, length(Traces)), Traces)].
+	{N, {_, List}} <- lists:zip(lists:seq(1, length(Traces)), Traces)].
 
 gen_dia_to_files(Pid,N,File) -> gen_dia_to_files(Pid, N, File, #config{}).
 
@@ -148,10 +148,10 @@ get_traces(Pid, NList) ->
 	  end,
     [{APid, Mes}
      || {N, {APid, Mes}} <-
-	     lists:zip(
-	       lists:seq(1, length(Messages)),
-	       Messages),
-	  ((NList =:= all) orelse (sets:is_element(N, Set)))].
+	    lists:zip(
+	      lists:seq(1, length(Messages)),
+	      Messages),
+	((NList =:= all) orelse (sets:is_element(N, Set)))].
 
 filter_non_important(List, Config) ->
     Set = find_important(List, Config),
@@ -165,13 +165,13 @@ find_important([(#callback{kind = exit_method,
 			   return =
 			       #value{type = _,
 				      obj_info = #obj_info{identifier = Id}}} = Callback)|Rest],
-		Set, Dict, Config) when is_integer(Id) ->
+	       Set, Dict, Config) when is_integer(Id) ->
     find_important(Rest, Set, dict:store(Id, Callback, Dict), Config);
 % Find all the entry methods with depth: add them to the list Set
 find_important([(#callback{kind = enter_method,
-			  depth = Depth,
-			  params = Params,
-			  this = This}) = Callback|Rest],
+			   depth = Depth,
+			   params = Params,
+			   this = This}) = Callback|Rest],
 	       Set, Dict, Config) when Depth >= 0 andalso Depth =< 1 ->
     NewSet = rec_add_deps(this_to_list(This) ++ Params, Set, Dict),
     find_important(Rest, sets:add_element(Callback, NewSet), Dict, Config);
@@ -229,8 +229,8 @@ get_dependencies(#callback{params = Params,
 this_to_list(#value{} = Value) -> [Value];
 this_to_list(_) -> [].
 
-gen_diagram(List) ->
-    TInfo = new_temp_info(),
+gen_diagram(List, Config) ->
+    TInfo = new_temp_info(Config),
     %% TInfo2 = gen_bas_conn(List, TInfo),
     TInfo2 = gen_bas_conn_aux(List, TInfo), % <-- Only one island
     Entities = element(2, lists:unzip(dict:to_list(TInfo2#temp_info.entity_index))),
@@ -243,34 +243,43 @@ gen_bas_conn_aux(Callbacks, TInfo) ->
 % If is enter method we just find and create dependencies
 gen_bas_connections(#callback{kind = enter_method} = Callback, TInfo) ->
     Deps = get_dependency_values(Callback), % Deps is a list of values of params
-                                                   % The first param is this a value may
-                                                   % be just an atom (meaning it doesn't exist)
-    {TInfo2, _} =
-	fetch_or_create_values(Deps, TInfo), % ResDeps is a list of ids of nodes
-                                             % maybe just created if the id is negative, it
-                                             % means it does not exist
-    TInfo2;
-% If is exit method, we add it to the graph
-% if it has dependencies, we link the dependencies
-gen_bas_connections(#callback{kind = exit_method} = Callback,
-		    TInfo) ->
+					    % The first param is this a value may
+					    % be just an atom (meaning it doesn't exist)
+    {TInfo2, _} = fetch_or_create_values(Deps, TInfo), % ResDeps is a list of ids of nodes
+						       % maybe just created if the id is negative, it
+						       % means it does not exist
+%%     {TInfo3, _} = create_usage_values(Deps, TInfo2, dummy), % ResDeps is a list of ids of nodes
+%% 						            % maybe just created if the id is negative, it
+%% 						            % means it does not exist
+    TInfo2;                                     % If is exit method, we add it to the graph
+						% if it has dependencies, we link the dependencies
+gen_bas_connections(#callback{kind = exit_method} = Callback, TInfo) ->
     Deps = get_dependency_values(Callback), % Deps is a list of values of params
-                                                   % The first param is this a value may
-                                                   % be just an atom (meaning it doesn't exist)
+					    % The first param is this a value may
+					    % be just an atom (meaning it doesn't exist)
     {TInfo2, [ResThis|ResDeps]} =
 	fetch_or_create_values(Deps, TInfo), % ResDeps is a list of ids of nodes
-                                             % maybe just created if the id is negative, it
-                                             % means it does not exist
+					     % maybe just created if the id is negative, it
+					     % means it does not exist
     {TInfo3, Id} = add_call_to_graph(Callback, TInfo2), % Id is the id of the new node
-    {TInfo4, _} = link_this_to_one(ResThis, Id, TInfo3), % Special link for "this" relation
-    TInfo5 = link_control_to_one(Callback, Id, TInfo4), % Special link for traversal http control
-    TInfo6 = link_all_to_one(ResDeps, Id, TInfo5), % Link each dep with new node
-    store_dependency(get_return_value(Callback), TInfo6, Id). % Store the return value as id
-                                                              % provided it is a value
+    {TInfo4, [ResThisUsage|ResDepsUsage]} =
+	create_usage_values(Deps, TInfo3, Id), % ResDeps is a list of ids of nodes
+					       % maybe just created if the id is negative, it
+					       % means it does not exist
+    {TInfo5, _} = link_this_to_one(ResThis, Id, TInfo4), % Special link for "this" relation
+    TInfo6 = link_control_to_one(Callback, Id, TInfo5), % Special link for traversal http control
+    TInfo7 = link_all_to_one(ResDeps, Id, TInfo6), % Link each dep with new node
+    TInfo8 = link_all_usage_to_one([ResThisUsage|ResDepsUsage], Id, TInfo7), % Link each usage dep with new node
+    RetVal = get_return_value(Callback),
+    TInfo9 = store_dependency_usage(RetVal, TInfo8, Id, return), % Store the return value as id
+					                         % provided it is a value
+    store_dependency(RetVal, TInfo9, Id). % Store the return value as id
+					  % provided it is a value
 
-new_temp_info() -> #temp_info{dependency_index = dict:new(),
-			      entity_index = dict:new(),
-			      last_entity_id = 1}.
+new_temp_info(Config) -> #temp_info{dependency_index = dict:new(),
+			            usage_dependency_index = dict:new(),
+			            entity_index = dict:new(),
+			            last_entity_id = 1, config = Config}.
 
 get_dependency_values(#callback{params = Params, this = This}) -> [This|Params].
 
@@ -295,8 +304,11 @@ get_tags(#callback{tags = Tags}) -> Tags.
 get_httpreqinfo(#callback{http_request = HttpRequest}) -> HttpRequest.
 
 fetch_or_create_values(Deps, TInfo) ->
-    {ResDeps, NewTInfo} = lists:mapfoldl(fun fetch_or_create_value/2, TInfo, Deps),
-    {NewTInfo, ResDeps}.
+  swap_tuple(lists:mapfoldl(fun fetch_or_create_value/2, TInfo, Deps)).
+
+gen_par_types(0, _) -> [];
+gen_par_types(N, PN) -> [{param, PN}|gen_par_types(N - 1, PN + 1)].
+gen_par_types(N) -> [this|gen_par_types(N - 1, 0)].
 
 fetch_or_create_value(Dep, TInfo) when is_atom(Dep) -> {-1, TInfo};
 fetch_or_create_value(#value{} = Value, TInfo) ->
@@ -306,6 +318,20 @@ fetch_or_create_value(#value{} = Value, TInfo) ->
 		 {Id, store_dependency(Value, TInfo2, Id)}
     end.
 
+create_usage_values(Deps, TInfo, Id) ->
+  swap_tuple(lists:mapfoldl(fun (A, B) -> create_usage_value(A, B, Id) end, TInfo, lists:zip(gen_par_types(length(Deps)), Deps))).
+
+swap_tuple({A, B}) -> {B, A}.
+
+create_usage_value({_, Dep}, TInfo, _Id) when is_atom(Dep) -> {-1, TInfo};
+create_usage_value({Type, #value{} = Value}, TInfo, Id) ->
+    LastId = case find_dependency_usage(Value, TInfo) of
+		 {ok, IId} -> IId;
+		 error -> {ok, IId} = find_dependency(Value, TInfo),
+              {result, IId}
+	     end,
+    {LastId, store_dependency_usage(Value, TInfo, Id, Type)}.
+
 %% find_dependency(#value{obj_info = #obj_info{identifier = Id}} = Value,
 %% 		#temp_info{dependency_index = Index}) when is_integer(Id) ->
 %%     dict:find(parser_utils:extract_id(Value), Index);
@@ -313,13 +339,20 @@ find_dependency(#value{} = Value, #temp_info{dependency_index = Index}) ->
     dict:find(parser_utils:extract_id(Value), Index);
 find_dependency(_, _) -> {ok, -1}.
 
+
+find_dependency_usage(#value{} = Value, #temp_info{usage_dependency_index = Index}) ->
+    dict:find(parser_utils:extract_id(Value), Index);
+find_dependency_usage(_, _) -> {ok, -1}.
+
 %    store_dependency(get_return_value(Callback), Id, TInfo5). % Store the return value as id
-                                                              % provided it is a value
+% provided it is a value
 store_dependency(#value{} = Value, #temp_info{dependency_index = Index} = TInfo, Id) ->
-    TInfo#temp_info{dependency_index = dict:store(parser_utils:extract_id(Value),
-						  Id, Index)};
+    TInfo#temp_info{dependency_index = dict:store(parser_utils:extract_id(Value), Id, Index)};
 store_dependency(_, TInfo, _) -> TInfo.
 
+store_dependency_usage(#value{} = Value, #temp_info{usage_dependency_index = UsageIndex} = TInfo, Type, Id) ->
+    TInfo#temp_info{usage_dependency_index = dict:store(parser_utils:extract_id(Value), {Id, Type}, UsageIndex)};
+store_dependency_usage(_, TInfo, _, _) -> TInfo.
 
 %    {TInfo3, Id} = add_call_to_graph(Callback, TInfo2), % Id is the id of the new node
 add_call_to_graph(Callback, TInfo) ->
@@ -383,6 +416,21 @@ link_all_to_one(Deps, Dest, TInfo) ->
 link_one_to_one_param(Ori, Dest, TInfo, ParamNumber) ->
     {TInfo2, Id} = get_new_entity_id(TInfo),
     Arc = mk_arc(Id, Ori, Dest, [solid], {param, ParamNumber}),
+    add_to_entity_index(Id, Arc, TInfo2).
+
+link_all_usage_to_one(Deps, Dest, TInfo) ->
+    lists:foldl(fun ({N, X}, TI) ->
+                        case usage_enabled(TI) of
+                                true -> link_one_to_one_usage(X, Dest, TI, N);
+                                false -> TI
+                        end;
+                    (-1, TI) -> TI end, TInfo, Deps).
+
+usage_enabled(#temp_info{config = #config{track_usage = UsageEnabled}}) -> UsageEnabled.
+
+link_one_to_one_usage(Ori, Dest, TInfo, UsageInfo) ->
+    {TInfo2, Id} = get_new_entity_id(TInfo),
+    Arc = mk_arc(Id, Ori, Dest, [dotted], {usage, UsageInfo}),
     add_to_entity_index(Id, Arc, TInfo2).
 
 mk_node(Id, Label, Properties, Content, IsLabelTerm, Tags, HttpReqInfo) ->

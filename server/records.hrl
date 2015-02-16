@@ -44,7 +44,7 @@
 -record(obj_info, {first_time, identifier}).
 -record(diagram_node, {id, label, properties = [], is_label_term = false, content, tags = [], http_request = no, cluster = no, class = empty}).
 -record(diagram_arc, {id, id_start, id_end, properties = [], content, tags, is_loop = false}).
--record(temp_info, {dependency_index, entity_index, last_entity_id, last_http = none, from_setUp = false}).
+-record(temp_info, {dependency_index, usage_dependency_index, entity_index, last_entity_id, last_http = none, from_setUp = false, config = none}).
 -record(drai, {dnodes, darcs, arcsf, arcst}).
 -record(path, {cur_list_nodes, node_ids, arc_ids, depth, ori_node, direction}).
 -record(config, {remove_bubbles = false, highlight_loops = true,
@@ -54,5 +54,5 @@
 		 big_k_value = 4, small_k_value = 1, remove_orphan_nodes = true,
 		 discard_calls_beginning_with = ["info"], % assert is another useful option
 		 remove_nodes_up_from = ["createTest", "getLogger", "run"],
-	   this_generator = "run",
+                 this_generator = "run", track_usage = false,
 		 max_iterations = inf, highlight_last_merge = false}).
