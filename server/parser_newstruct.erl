@@ -330,7 +330,7 @@ create_usage_value({Type, #value{} = Value}, TInfo, Id) ->
 		 error -> {ok, IId} = find_dependency(Value, TInfo),
               {result, IId}
 	     end,
-    {LastId, store_dependency_usage(Value, TInfo, Id, Type)}.
+    {{Type, LastId}, store_dependency_usage(Value, TInfo, Id, Type)}.
 
 %% find_dependency(#value{obj_info = #obj_info{identifier = Id}} = Value,
 %% 		#temp_info{dependency_index = Index}) when is_integer(Id) ->
@@ -419,18 +419,18 @@ link_one_to_one_param(Ori, Dest, TInfo, ParamNumber) ->
     add_to_entity_index(Id, Arc, TInfo2).
 
 link_all_usage_to_one(Deps, Dest, TInfo) ->
-    lists:foldl(fun ({N, X}, TI) ->
+    lists:foldl(fun ({Type, {N, X}}, TI) ->
                         case usage_enabled(TI) of
-                                true -> link_one_to_one_usage(X, Dest, TI, N);
+                                true -> link_one_to_one_usage(X, Dest, TI, N, Type);
                                 false -> TI
                         end;
                     (-1, TI) -> TI end, TInfo, Deps).
 
 usage_enabled(#temp_info{config = #config{track_usage = UsageEnabled}}) -> UsageEnabled.
 
-link_one_to_one_usage(Ori, Dest, TInfo, UsageInfo) ->
+link_one_to_one_usage(Ori, Dest, TInfo, UsageInfo, Type) ->
     {TInfo2, Id} = get_new_entity_id(TInfo),
-    Arc = mk_arc(Id, Ori, Dest, [dotted], {usage, UsageInfo}),
+    Arc = mk_arc(Id, Ori, Dest, [dotted], {usage, Type}, UsageInfo),
     add_to_entity_index(Id, Arc, TInfo2).
 
 mk_node(Id, Label, Properties, Content, IsLabelTerm, Tags, HttpReqInfo) ->
@@ -438,9 +438,12 @@ mk_node(Id, Label, Properties, Content, IsLabelTerm, Tags, HttpReqInfo) ->
 		  is_label_term = IsLabelTerm, content = Content, tags = Tags,
 		  http_request = HttpReqInfo}.
 
-mk_arc(Id, IdStart, IdEnd, Properties, Content) ->
-    #diagram_arc{id = integer_to_list(Id), id_start = integer_to_list(IdStart), id_end = integer_to_list(IdEnd),
-		 properties = Properties, content = Content, tags = [{historic_rel, IdStart, Id, IdEnd}]}.
+mk_arc(Id, IdStart, IdEnd, Properties, Content) -> mk_arc(Id, IdStart, IdEnd, Properties, Content, na).
+mk_arc(Id, IdStart, IdEnd, Properties, Content, UsageInfo) ->
+    #diagram_arc{id = integer_to_list(Id), id_start = integer_to_list(IdStart),
+				 start_type = UsageInfo, id_end = integer_to_list(IdEnd),
+				 properties = Properties, content = Content,
+				 tags = [{historic_rel, IdStart, Id, IdEnd}]}.
 
 add_to_entity_index(Id, Item, #temp_info{entity_index = Dict} = TInfo) ->
     TInfo#temp_info{entity_index = dict:store(Id, Item, Dict)}.
