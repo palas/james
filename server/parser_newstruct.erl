@@ -438,7 +438,7 @@ mk_node(Id, Label, Properties, Content, IsLabelTerm, Tags, HttpReqInfo) ->
 		  is_label_term = IsLabelTerm, content = Content, tags = Tags,
 		  http_request = HttpReqInfo}.
 
-mk_arc(Id, IdStart, IdEnd, Properties, Content) -> mk_arc(Id, IdStart, IdEnd, Properties, Content, na).
+mk_arc(Id, IdStart, IdEnd, Properties, Content) -> mk_arc(Id, IdStart, IdEnd, Properties, Content, return).
 mk_arc(Id, IdStart, IdEnd, Properties, Content, UsageInfo) ->
     #diagram_arc{id = integer_to_list(Id), id_start = integer_to_list(IdStart),
 				 start_type = UsageInfo, id_end = integer_to_list(IdEnd),
