@@ -819,10 +819,11 @@ depth_search_inc_in_clus(#diagram_node{id = NodeId, cluster = ClusterN} = Node,
 				  no -> ClusterN;
 				  Else -> Else
 			  end,
-    NodeDownIdSet = expand_nodes_down_wt_arcfilter(fun is_data_dep/1, sets:from_list([NodeId]), Drai),
+    NodeDownIdSet = sets:subtract(expand_nodes_down_wt_arcfilter(fun is_data_dep/1, sets:from_list([NodeId]), Drai),
+				  sets:from_list(get_nod_ids(NewTrace))),
     NodeDownSet = sets:from_list(get_nodes_by_ids(sets:to_list(NodeDownIdSet), Drai)),
 	case sets:size(NodeDownIdSet) of
-		0 -> {add_to_cluster(NewTrace, Cluster, Drai), Trace, ClusterAc};
+		0 -> {add_to_cluster(NewTrace, Cluster, Drai), NewTrace, ClusterAc};
 		_ -> {NewDrai, _, _} = sets:fold(fun depth_search_inc_in_clus/2, {Drai, NewTrace, Cluster}, NodeDownSet),
 			 {NewDrai, Trace, ClusterAc}
 	end.

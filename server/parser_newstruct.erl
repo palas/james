@@ -372,10 +372,16 @@ add_value_to_graph(Value, TInfo) ->
 %    TInfo4 = link_this_to_one(ResThis, Id, TInfo3), % Special link for "this" relation
 link_this_to_one(-1, _, TInfo) -> {TInfo, -1};
 link_this_to_one(Ori, Dest, TInfo) ->
-    {TInfo2, Id} = get_new_entity_id(TInfo),
-    Arc = mk_arc(Id, Ori, Dest, [dashed], this),
-    TInfo3 = add_to_entity_index(Id, Arc, TInfo2),
-    {TInfo3, Id}.
+    case usage_enabled(TInfo) of
+	false ->
+	    begin
+		{TInfo2, Id} = get_new_entity_id(TInfo),
+		Arc = mk_arc(Id, Ori, Dest, [dashed], this),
+		TInfo3 = add_to_entity_index(Id, Arc, TInfo2),
+		{TInfo3, Id}
+	    end;
+	true -> {TInfo, -1}
+    end.
 
 which_http_tag([is_before|_]) -> is_before;
 which_http_tag([is_test|_]) -> is_test;
@@ -410,13 +416,24 @@ tag_entry_point(Id, #temp_info{entity_index = EIndex} = TempInfo) ->
 
 %    TInfo5 = link_all_to_one(ResDeps, Id, TInfo4), % Link each dep with new node
 link_all_to_one(Deps, Dest, TInfo) ->
-    lists:foldl(fun ({N, X}, TI) -> link_one_to_one_param(X, Dest, TI, N) end, TInfo,
+    lists:foldl(fun ({N, X}, TI) ->
+                        case usage_enabled(TI) of
+			    false -> link_one_to_one_param(X, Dest, TI, N);
+			    true -> TI
+                        end
+		end, TInfo,
 		lists:zip(lists:seq(1, length(Deps)), Deps)).
 
 link_one_to_one_param(Ori, Dest, TInfo, ParamNumber) ->
-    {TInfo2, Id} = get_new_entity_id(TInfo),
-    Arc = mk_arc(Id, Ori, Dest, [solid], {param, ParamNumber}),
-    add_to_entity_index(Id, Arc, TInfo2).
+    case usage_enabled(TInfo) of
+	false ->
+	    begin
+		{TInfo2, Id} = get_new_entity_id(TInfo),
+		Arc = mk_arc(Id, Ori, Dest, [solid], {param, ParamNumber}),
+		add_to_entity_index(Id, Arc, TInfo2)
+	    end;
+	true -> TInfo
+    end.
 
 link_all_usage_to_one(Deps, Dest, TInfo) ->
     lists:foldl(fun ({Type, {N, X}}, TI) ->
@@ -430,7 +447,7 @@ usage_enabled(#temp_info{config = #config{track_usage = UsageEnabled}}) -> Usage
 
 link_one_to_one_usage(Ori, Dest, TInfo, UsageInfo, Type) ->
     {TInfo2, Id} = get_new_entity_id(TInfo),
-    Arc = mk_arc(Id, Ori, Dest, [dotted], {usage, Type}, UsageInfo),
+    Arc = mk_arc(Id, Ori, Dest, [dotted], Type, UsageInfo),
     add_to_entity_index(Id, Arc, TInfo2).
 
 mk_node(Id, Label, Properties, Content, IsLabelTerm, Tags, HttpReqInfo) ->
