@@ -270,6 +270,7 @@ add_state_and_gen_call(Mod, EList) ->
       [erl_syntax:variable("Size"),erl_syntax:application(erl_syntax:atom(atom_to_list(Mod) ++ "_dep"),
         erl_syntax:atom(args_for),
         [erl_syntax:variable("Size"),
+	 erl_syntax:atom(return),
           erl_syntax:variable("State"),
           NodeNum])])]).
 

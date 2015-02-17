@@ -53,7 +53,7 @@
 	 move_returns/3, get_arcs_up/2, generate_subgraphs/1, print_nodeids/1,
 	 expand_nodes_within_cluster/2, resolve_ids/2, get_cluster_id/1,
 	 expand_diamonds_down/2, is_data_dep/1, get_top_nodes/1,
-	 get_control_nodes/1, set_this_node/2, is_usage_dep/1]).
+	 get_control_nodes/1, set_this_node/2, is_usage_dep/1, parents_codes/3]).
 
 %% Low level diagram record interface functions
 %% ============================================
@@ -853,3 +853,31 @@ set_this_node_fold(Id, #drai{dnodes = DNodes} = Drai) ->
 	(#diagram_node{tags = Tags} = Node) = dict:fetch(Id, DNodes),
 	Drai#drai{dnodes = dict:store(Id, Node#diagram_node{tags = [this|Tags]}, DNodes)}.
 
+
+% Parents codes
+
+parents_codes(Code, Drai, Mode) ->
+    sort_codes(Drai, dia_utils:expand_node_id_to_trans_up(Code, Drai), Mode).
+
+sort_codes(Drai, Codes, Mode) ->
+    case {lists:dropwhile(fun (#diagram_arc{content = this}) -> false;
+			      (#diagram_arc{content = {param, _}}) -> false;
+			      (_) -> true end,
+			  utils:sort_using(fun code_sorter/1, Codes)), Mode} of
+	{[#diagram_arc{id_start = Id, content = this}|Rest], normal} -> {{return, Id}, clean_arcs(normal, Drai, Rest)};
+	{Rest, normal} -> {static, clean_arcs(normal, Drai, Rest)};
+	{Rest, diamond} -> clean_arcs(diamond, Drai, Rest)
+    end.
+
+clean_arcs(normal, _Drai, List) -> lists:map(fun clean_arcs/1, List);
+clean_arcs(diamond, Drai, List) -> clean_arcs_diamond(Drai, List).
+clean_arcs(#diagram_arc{id_start = Id}) -> {return, Id}.
+
+clean_arcs_diamond(_Drai, List) ->
+	[{case Loop of true -> loop; false -> normal end, {return, Start}}
+	|| #diagram_arc{id_start = Start, is_loop = Loop} <- List].
+%TODO: remove dead ends
+
+code_sorter(#diagram_arc{content = this}) -> -1;
+code_sorter(#diagram_arc{content = {param, N}}) -> N;
+code_sorter(_) -> -2.

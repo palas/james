@@ -42,9 +42,9 @@
 -include_lib("eqc/include/eqc.hrl").
 
 -export([serialise_trace_with_state/2, update_symsubstate/2, initial_state_sym/0,
-	 add_result_to_state_sym/2, get_instances_of_sym/3, get_num_var_sym/1,
-	 initial_state_raw/0, add_result_to_state_raw/3, get_instance_of_raw/2,
-	 get_instance_of_raw_aux/2, get_num_var_raw/1, add_checks/2, control_add/2,
+	 add_result_to_state_sym/2, get_instances_of_sym/4, get_num_var_sym/1,
+	 initial_state_raw/0, add_all_params_to_state_raw/3, get_instance_of_raw/3,
+	 get_instance_of_raw_aux/3, get_num_var_raw/1, add_checks/2, control_add/3,
 	 used_and_res/1, used_and_fix/2, used_or/1, remove_result_tag/1,
 	 add_weights/3, normalise_weights/1]).
 
@@ -53,9 +53,9 @@
 initial_state_sym() -> {1, dict:new()}.
 add_result_to_state_sym(Code, {N, Dict}) ->
     {N + 1, dict:update(Code, fun (Old) -> [N|Old] end, [N], Dict)}.
-get_instances_of_sym(Code, {_N, Dict}, _RawState) ->
+get_instances_of_sym(Code, WhatToReturn, {_N, Dict}, _RawState) ->
     case dict:find(Code, Dict) of
-	{ok, List} -> [{jcall, ?MODULE, get_instance_of_raw_aux, [Entry]} || Entry <- List];
+	{ok, List} -> [{jcall, ?MODULE, get_instance_of_raw_aux, [WhatToReturn, Entry]} || Entry <- List];
 	error -> []
     end.
 get_last_instance_num_of_sym(Code, {_N, Dict}) ->
@@ -66,16 +66,20 @@ get_last_instance_num_of_sym(Code, {_N, Dict}) ->
 get_num_var_sym({N, _}) -> N.
 % Raw state accessors
 initial_state_raw() -> {1, dict:new()}.
-add_result_to_state_raw(_Code, {N, Dict}, Result) ->
+add_all_params_to_state_raw(_Code, {N, Dict}, Result) ->
     {N + 1, dict:store(N, Result, Dict)}.
-get_instance_of_raw(Code, {_N, Dict}) ->
-    dict:fetch(Code, Dict).
-get_instance_of_raw_aux(RawState, Code) ->
-    {RawState, get_instance_of_raw(Code, RawState)}.
+get_instance_of_raw(Code, WhatToReturn, {_N, Dict}) ->
+    lists:nth(case WhatToReturn of
+		  return -> 1;
+		  this -> 2;
+		  {param, N} -> 2 + N
+	      end, dict:fetch(Code, Dict)).
+get_instance_of_raw_aux(RawState, WhatToReturn, Code) ->
+    {RawState, get_instance_of_raw(Code, WhatToReturn, RawState)}.
 get_num_var_raw({N, _}) -> N.
 
-control_add(State, Code) ->
-    case utils:get_instances_of_sym(Code, State, dummy) of
+control_add(State, WhatToReturn, Code) ->
+    case utils:get_instances_of_sym(Code, WhatToReturn, State, dummy) of
       [] -> error;
       List -> {ok, oneof(List)}
     end.
@@ -149,7 +153,7 @@ bias_zero(List) ->
 
 % ToDo: generate check calls for params
 add_checks(Code, SymSubState) ->
-    ?LET(Checks, remove_result_tag([iface_used_dep:used_args_for(SymSubState, Check)
+    ?LET(Checks, remove_result_tag([iface_used_dep:used_args_for(SymSubState, return, Check)
 				    || Check <- iface_check:checks_for(Code), Check =/= Code]),
 	 begin
 	     NewSymSubState = lists:foldr(fun update_symsubstate/2, SymSubState, Checks),

@@ -85,36 +85,12 @@ gen_used_dep_aux(Code, #diagram_node{properties = [ellipse|_]} = Rec, {{PrimL, O
 	{{[{prim, Code, Rec, none}|PrimL], OneOfsL, CallsL}, Drai};
 gen_used_dep_aux(Code, #diagram_node{properties = [diamond|_]} = Rec,
 		 {{PrimL, OneOfsL, CallsL}, Drai}) ->
-    {{PrimL, [{oneOf, Code, Rec, parents_codes(Code, Drai, diamond)}|OneOfsL], CallsL}, Drai};
+    {{PrimL, [{oneOf, Code, Rec, dia_utils:parents_codes(Code, Drai, diamond)}|OneOfsL], CallsL}, Drai};
 gen_used_dep_aux(Code, #diagram_node{properties = [rectangle|_], content = #callback{params = CPList, this = CThis}} = Rec,
 		 {{PrimL, OneOfsL, CallsL}, Drai}) ->
-    {{PrimL, OneOfsL, [{acall, Code, Rec, parents_codes(Code, Drai, normal), {CPList, CThis}}|CallsL]}, Drai}.
+    {{PrimL, OneOfsL, [{acall, Code, Rec, dia_utils:parents_codes(Code, Drai, normal), {CPList, CThis}}|CallsL]}, Drai}.
 pack_node_info(Code, Rec, List) -> [{control, Code, Rec, none}|List].
 
-parents_codes(Code, Drai, Mode) ->
-    sort_codes(Drai, dia_utils:expand_node_id_to_trans_up(Code, Drai), Mode).
-
-sort_codes(Drai, Codes, Mode) ->
-    case {lists:dropwhile(fun (#diagram_arc{content = this}) -> false;
-			      (#diagram_arc{content = {param, _}}) -> false;
-			      (_) -> true end,
-			  utils:sort_using(fun code_sorter/1, Codes)), Mode} of
-	{[#diagram_arc{id_start = Id, content = this}|Rest], normal} -> {Id, clean_arcs(normal, Drai, Rest)};
-	{Rest, normal} -> {static, clean_arcs(normal, Drai, Rest)};
-	{Rest, diamond} -> clean_arcs(diamond, Drai, Rest)
-    end.
-
-clean_arcs(normal, _Drai, List) -> lists:map(fun clean_arcs/1, List);
-clean_arcs(diamond, Drai, List) -> clean_arcs_diamond(Drai, List).
-clean_arcs(#diagram_arc{id_start = Id}) -> Id.
-
-clean_arcs_diamond(_Drai, List) ->
-	[{case Loop of true -> loop; false -> normal end, Start}
-	|| #diagram_arc{id_start = Start, is_loop = Loop} <- List].
-
-code_sorter(#diagram_arc{content = this}) -> -1;
-code_sorter(#diagram_arc{content = {param, N}}) -> N;
-code_sorter(_) -> -2.
 
 %Fun = fun((Key, Value, AccIn) -> AccOut)
 
@@ -125,11 +101,11 @@ dep_file(ModuleName, ThisModuleName, {ControlNodes, Prim, OneOfs, Calls}) ->
 mk_tree(ModuleName, ThisModuleName, {ControlNodes, Prim, OneOfs, Calls}) ->
     header(ThisModuleName) ++
 	[erl_syntax:function(
-	  erl_syntax:atom(used_args_for),
-		control_funcs(ModuleName, ThisModuleName, ControlNodes) ++
-	  		prim_funcs(ModuleName, ThisModuleName, Prim) ++
-	      oneofs_funcs(ModuleName, ThisModuleName, OneOfs) ++
-	      call_funcs(ModuleName, ThisModuleName, Calls))].
+	   erl_syntax:atom(used_args_for),
+	   control_funcs(ModuleName, ThisModuleName, ControlNodes) ++
+	       prim_funcs(ModuleName, ThisModuleName, Prim) ++
+	       oneofs_funcs(ModuleName, ThisModuleName, OneOfs) ++
+	       call_funcs(ModuleName, ThisModuleName, Calls))].
 
 header(Module) ->
   [erl_syntax:attribute(erl_syntax:atom(module),[erl_syntax:atom(Module)]),
@@ -137,32 +113,39 @@ header(Module) ->
   ].
 
 control_funcs(_ModuleName, _ThisModuleName, Prim) ->
-	[erl_syntax:clause([erl_syntax:variable("State"),
-		erl_syntax:abstract(Code)],
-		none,
-		[erl_syntax:application(erl_syntax:atom(utils), erl_syntax:atom(control_add),
-           [erl_syntax:variable("State"),erl_syntax:abstract(Code)])])
-		|| {control, Code, _Node, none} <- Prim].
+    [erl_syntax:clause(
+       [erl_syntax:variable("State"),
+	erl_syntax:variable("WhatToReturn"),
+	erl_syntax:abstract(Code)],
+       none,
+       [erl_syntax:application(erl_syntax:atom(utils), erl_syntax:atom(control_add),
+			       [erl_syntax:variable("State"),
+				erl_syntax:variable("WhatToReturn"),
+				erl_syntax:abstract(Code)])])
+     || {control, Code, _Node, none} <- Prim].
 
 prim_funcs(ModuleName, _ThisModuleName, Prim) ->
-	[erl_syntax:clause([erl_syntax:variable("_State"),
-		erl_syntax:abstract(Code)],
-		none,
-		[erl_syntax:tuple([
-			erl_syntax:atom(ok),
-			erl_syntax:tuple(
-			[erl_syntax:atom(jcall),
-				erl_syntax:atom(ModuleName),
-				erl_syntax:atom(actual_callback),
-				erl_syntax:list(
-					[erl_syntax:abstract(Code),
-						map_abstract(template_gen:value_to_map(Val)),
-						erl_syntax:list([])])
-			])])])
-		|| {prim, Code, #diagram_node{content = Val}, none} <- Prim].
+    [erl_syntax:clause([erl_syntax:variable("_State"),
+			erl_syntax:variable("WhatToReturn"),
+			erl_syntax:abstract(Code)],
+		       none,
+		       [erl_syntax:tuple(
+			  [erl_syntax:atom(ok),
+			   erl_syntax:tuple(
+			     [erl_syntax:atom(jcall),
+			      erl_syntax:atom(ModuleName),
+			      erl_syntax:atom(actual_callback),
+			      erl_syntax:list(
+				[erl_syntax:abstract(Code),
+				 erl_syntax:variable("WhatToReturn"),
+				 map_abstract(template_gen:value_to_map(Val)),
+				 erl_syntax:list([])])
+			     ])])])
+     || {prim, Code, #diagram_node{content = Val}, none} <- Prim].
 
-oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) -> 
+oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
     [erl_syntax:clause([erl_syntax:variable(utils:underscore_if_ne("State", PNodes)),
+			erl_syntax:variable("_WhatToReturn"),
 			erl_syntax:abstract(Code)],
 		       none,
 		       [case lists:map(fun ({_, X}) -> X end, PNodes) of
@@ -180,12 +163,16 @@ oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
 								erl_syntax:variable("Node"),
 								erl_syntax:application(
 								  erl_syntax:atom(used_args_for),
-								  [erl_syntax:variable("State"),erl_syntax:variable("Node")])]),
+								  [erl_syntax:variable("State"),
+								   erl_syntax:variable("WhatToReturn"),
+								   erl_syntax:variable("Node")])]),
 							     [erl_syntax:generator(
-								erl_syntax:variable("Node"),
+								erl_syntax:tuple(
+								  [erl_syntax:variable("WhatToReturn"),
+								   erl_syntax:variable("Node")]),
 								erl_syntax:abstract(PNodesFix))])])])
-						       end])
-		       || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
+			end])
+     || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
 
 check_sig({A, _}, {B, _}) when (is_list(A) andalso is_atom(B)) ->
     false;
@@ -201,6 +188,7 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 	     SigOk = check_sig({This, Params}, {EParams, EThis}),
 	     erl_syntax:clause(
 	       [erl_syntax:variable(utils:underscore_if_true("State", IsThis orelse (not SigOk))),
+		erl_syntax:variable(utils:underscore_if_true("WhatToReturn", IsThis orelse (not SigOk))),
 		erl_syntax:abstract(Code)],
 	       none,
 	       [case IsThis of
@@ -209,7 +197,7 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 			    true -> erl_syntax:case_expr(
 				      erl_syntax:application(
 					erl_syntax:atom("utils"),erl_syntax:atom("control_add"),
-					[erl_syntax:variable("State"),erl_syntax:abstract(Code)]),
+					[erl_syntax:variable("State"),erl_syntax:variable("WhatToReturn"),erl_syntax:abstract(Code)]),
 				      [erl_syntax:clause([erl_syntax:atom(error)],
 							 none,
 							 [erl_syntax:match_expr(
@@ -228,6 +216,7 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 										     erl_syntax:atom(actual_callback),
 										     erl_syntax:list(
 										       [erl_syntax:abstract(Code),
+											erl_syntax:variable("WhatToReturn"),
 											map_abstract(template_gen:callback_to_map(Callback)),
 											erl_syntax:variable("CParams")
 										       ])]),
@@ -240,16 +229,18 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 	 end
 	 || {acall, Code, (#diagram_node{content = Callback} = Node), {This, Params}, {EThis, EParams}} <- Calls].
 
-this_call(List) when is_list(List) -> calls_for(List);
+this_call({CallType, List}) when is_list(List) -> calls_for({CallType, List});
 this_call(Else) -> erl_syntax:abstract(Else).
 
 calls_for_normal(List) ->
 	erl_syntax:list(lists:map(fun calls_for/1, List)).
 
-calls_for(Node) -> erl_syntax:application(
-		      erl_syntax:atom(used_args_for),
-		      [erl_syntax:variable("State"),
-		       erl_syntax:string(Node)]).
+
+calls_for({CallType, Node}) -> erl_syntax:application(
+				 erl_syntax:atom(used_args_for),
+				 [erl_syntax:variable("State"),
+				  erl_syntax:abstract(CallType),
+				  erl_syntax:string(Node)]).
 
 map_abstract(List) when is_list(List) ->
     case io_lib:printable_list(List) of

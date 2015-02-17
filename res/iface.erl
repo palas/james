@@ -38,7 +38,7 @@
 %%% POSSIBILITY OF SUCH DAMAGE.
 %%%-------------------------------------------------------------------
 -module(iface).
--export([callback/3, actual_callback/4, evaluate/2]).
+-export([callback/3, actual_callback/5, evaluate/2]).
 
 -include_lib("eqc/include/eqc.hrl").
 
@@ -75,6 +75,19 @@ evaluate_checks(Param, {RawState, N}) ->
     [_Result, NewRawSubState|_Inter] = lists:reverse(eqc_symbolic:eval(utils:serialise_trace_with_state(RawState, Param))),
     {NewRawSubState, N + 1}.
 
+
+actual_callback(State, Code, WhatToReturn, Info, []) ->
+    {NewState, Result} = actual_callback(State, Code, Info, []),
+    case WhatToReturn of
+	return -> {NewState, Result}
+    end;
+actual_callback(State, Code, WhatToReturn, Info,  {This, Params}) ->
+    {NewState, Result} = actual_callback(State, Code, Info, {This, Params}),
+    case WhatToReturn of
+	return -> {NewState, Result};
+	this -> {NewState, This};
+	{param, N} -> {NewState, lists:nth(N, Params)}
+    end.
 actual_callback(State, Code, #{obj_info := #{},
 			       type := Type,
 			       value := Value}, []) ->
@@ -84,7 +97,7 @@ actual_callback(State, Code, #{obj_info := #{},
 		 _ -> {jvar, Num}
 	     end,
     io:format("~s ~s = ~p;~n", [type_to_java(Type), name_for({Result, no_cast}), Value]),
-    {utils:add_result_to_state_raw(Code, State, Result), Result};
+    {utils:add_all_params_to_state_raw(Code, State, [Result]), Result};
 actual_callback(State, Code, #{class_signature := ClassSignature,
 			       method_name := "<init>",
 			       method_signature := Signature}, {static, ParamList}) ->
@@ -93,7 +106,7 @@ actual_callback(State, Code, #{class_signature := ClassSignature,
 					 name_for({Result, no_cast}),
 					 class_to_normal_notation(ClassSignature),
 					 mk_param_list(ParamList,Signature)]),
-    {utils:add_result_to_state_raw(Code, State, Result), Result};
+    {utils:add_all_params_to_state_raw(Code, State, [Result, static | ParamList]), Result};
 actual_callback(State, Code, #{class_signature := ClassSignature,
 			       method_name := Name,
 			       method_signature := Signature}, {static, ParamList}) ->
@@ -109,7 +122,7 @@ actual_callback(State, Code, #{class_signature := ClassSignature,
 			class_to_normal_notation(ClassSignature),
 			Name, mk_param_list(ParamList,Signature)])
     end,
-    {utils:add_result_to_state_raw(Code, State, Result), Result};
+    {utils:add_all_params_to_state_raw(Code, State, [Result, static | ParamList]), Result};
 actual_callback(State, Code, #{method_name := Name,
 			       method_signature := Signature}, {This, ParamList}) ->
     Result = {jvar, utils:get_num_var_raw(State)},
@@ -121,13 +134,13 @@ actual_callback(State, Code, #{method_name := Name,
 		       [Ret, name_for({Result, no_cast}), name_for({This, no_cast}), Name,
 			mk_param_list(ParamList,Signature)])
     end,
-    {utils:add_result_to_state_raw(Code, State, Result), Result};
+    {utils:add_all_params_to_state_raw(Code, State, [Result, This | ParamList]), Result};
 actual_callback(State, Code, Rec, ParamList) ->
     io:format("~nState:~p~nCode:~p~nRec:~p~nParamList:~p~n",
 	      [State, Code, Rec, ParamList]),
     Result = {jvar, utils:get_num_var_raw(State)},
     io:format("Result: ~p~n~n", [Result]),
-    {utils:add_result_to_state_raw(Code, State, Result), Result}.
+    {utils:add_all_params_to_state_raw(Code, State, [Result | ParamList]), Result}.
 
 mk_param_list(ParamList,Signature) ->
     list_to_commasep_str(

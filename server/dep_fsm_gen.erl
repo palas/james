@@ -52,35 +52,9 @@ gen_dep(#drai{dnodes = DNodes} = Drai, Path, ModuleName) ->
 gen_dep_aux(Code, #diagram_node{properties = [ellipse|_]} = Rec, {{PrimL, OneOfsL, CallsL}, Drai}) ->
     {{[{prim, Code, Rec, none}|PrimL], OneOfsL, CallsL}, Drai};
 gen_dep_aux(Code, #diagram_node{properties = [diamond|_]} = Rec, {{PrimL, OneOfsL, CallsL}, Drai}) ->
-    {{PrimL, [{oneOf, Code, Rec, parents_codes(Code, Drai, diamond)}|OneOfsL], CallsL}, Drai};
+    {{PrimL, [{oneOf, Code, Rec, dia_utils:parents_codes(Code, Drai, diamond)}|OneOfsL], CallsL}, Drai};
 gen_dep_aux(Code, #diagram_node{properties = [rectangle|_]} = Rec, {{PrimL, OneOfsL, CallsL}, Drai}) ->
-    {{PrimL, OneOfsL, [{acall, Code, Rec, parents_codes(Code, Drai, normal)}|CallsL]}, Drai}.
-
-parents_codes(Code, Drai, Mode) ->
-    sort_codes(Drai, dia_utils:expand_node_id_to_trans_up(Code, Drai), Mode).
-
-sort_codes(Drai, Codes, Mode) ->
-    case {lists:dropwhile(fun (#diagram_arc{content = this}) -> false;
-			      (#diagram_arc{content = {param, _}}) -> false;
-			      (_) -> true end,
-			  utils:sort_using(fun code_sorter/1, Codes)), Mode} of
-	{[#diagram_arc{id_start = Id, content = this}|Rest], normal} -> {Id, clean_arcs(normal, Drai, Rest)};
-	{Rest, normal} -> {static, clean_arcs(normal, Drai, Rest)};
-	{Rest, diamond} -> clean_arcs(diamond, Drai, Rest)
-    end.
-
-clean_arcs(normal, _Drai, List) -> lists:map(fun clean_arcs/1, List);
-clean_arcs(diamond, Drai, List) -> clean_arcs_diamond(Drai, List).
-clean_arcs(#diagram_arc{id_start = Id}) -> Id.
-
-clean_arcs_diamond(_Drai, List) ->
-	[{case Loop of true -> loop; false -> normal end, Start}
-	|| #diagram_arc{id_start = Start, is_loop = Loop} <- List].
-%TODO: remove dead ends
-
-code_sorter(#diagram_arc{content = this}) -> -1;
-code_sorter(#diagram_arc{content = {param, N}}) -> N;
-code_sorter(_) -> -2.
+    {{PrimL, OneOfsL, [{acall, Code, Rec, dia_utils:parents_codes(Code, Drai, normal)}|CallsL]}, Drai}.
 
 %Fun = fun((Key, Value, AccIn) -> AccOut)
 
@@ -102,7 +76,8 @@ reuse_fun(_Module) ->
       erl_syntax:atom(args_for_op),
       [erl_syntax:clause(
 	 [erl_syntax:variable("Size"),
-		erl_syntax:match_expr(
+	  erl_syntax:variable("WhatToReturn"),
+	  erl_syntax:match_expr(
 	    erl_syntax:tuple(
 	      [erl_syntax:atom(empty),
 	       erl_syntax:atom(empty)]),
@@ -112,11 +87,13 @@ reuse_fun(_Module) ->
 	 [erl_syntax:application(
 	    erl_syntax:atom(args_for),
 	    [erl_syntax:variable("Size"),
-		   erl_syntax:variable("State"),
+	     erl_syntax:variable("WhatToReturn"),
+	     erl_syntax:variable("State"),
 	     erl_syntax:variable("Code")])]),
        erl_syntax:clause(
 	 [erl_syntax:variable("Size"),
-		 erl_syntax:match_expr(
+	  erl_syntax:variable("WhatToReturn"),
+	  erl_syntax:match_expr(
 	    erl_syntax:tuple(
 	      [erl_syntax:tuple(
 		 [erl_syntax:underscore(),
@@ -131,6 +108,7 @@ reuse_fun(_Module) ->
 		erl_syntax:atom("utils"),
 		erl_syntax:atom(get_instances_of_sym)),
 	      [erl_syntax:variable("Code"),
+	       erl_syntax:variable("WhatToReturn"),
 	       erl_syntax:variable("SymState"),
 	       erl_syntax:variable("RawState")]),
 	    [erl_syntax:clause(
@@ -139,7 +117,8 @@ reuse_fun(_Module) ->
 	       [erl_syntax:application(
 		  erl_syntax:atom(args_for),
 		  [erl_syntax:variable("Size"),
-			 erl_syntax:variable("State"),
+		   erl_syntax:variable("WhatToReturn"),
+		   erl_syntax:variable("State"),
 		   erl_syntax:variable("Code")])]),
 	     erl_syntax:clause(
 	       [erl_syntax:variable("List")],
@@ -150,7 +129,8 @@ reuse_fun(_Module) ->
 		     erl_syntax:application(
 		       erl_syntax:atom(args_for),
 		       [erl_syntax:variable("Size"),
-						erl_syntax:variable("State"),
+			erl_syntax:variable("WhatToReturn"),
+			erl_syntax:variable("State"),
 			erl_syntax:variable("Code")]),
 		     erl_syntax:variable("List"))])])])])]).
 
@@ -165,6 +145,7 @@ mkinclude(String) ->
 
 prim_funcs(ModuleName, _ThisModuleName, Prim) ->
     [erl_syntax:clause([erl_syntax:variable("_Size"),
+			erl_syntax:variable("WhatToReturn"),
 			erl_syntax:variable("_State"),
 			erl_syntax:abstract(Code)],
 		       none,
@@ -174,6 +155,7 @@ prim_funcs(ModuleName, _ThisModuleName, Prim) ->
 			   erl_syntax:atom(actual_callback),
 			   erl_syntax:list(
 			     [erl_syntax:abstract(Code),
+			      erl_syntax:variable("WhatToReturn"),
 			      map_abstract(template_gen:value_to_map(Val)),
 			      erl_syntax:list([])])
 			  ])])
@@ -182,6 +164,7 @@ prim_funcs(ModuleName, _ThisModuleName, Prim) ->
 oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) -> 
     [erl_syntax:clause([
 			erl_syntax:variable(utils:underscore_if_ne("Size", PNodes)),
+			erl_syntax:variable("_WhatToReturn"),
 			erl_syntax:variable(utils:underscore_if_ne("State", PNodes)),
 			erl_syntax:abstract(Code)],
 		       none,
@@ -190,36 +173,37 @@ oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
 			  [calls_for_with_size(PNodes)])])
      || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
 call_funcs(ModuleName, _ThisModuleName, Calls) ->
-	[
-		begin
-			IsThis = lists:member(this, Node#diagram_node.tags),
-			UnderscoreIfNe = (case (This) of
-													static -> [];
-													Else -> Else
-												end ++ Params),erl_syntax:clause([
-				erl_syntax:variable(utils:underscore_if_true(utils:underscore_if_ne("Size", UnderscoreIfNe), IsThis)),
-				erl_syntax:variable(utils:underscore_if_true(utils:underscore_if_ne("State", UnderscoreIfNe), IsThis)),
-				erl_syntax:abstract(Code)],
-				none,
-				[case lists:member(this, Node#diagram_node.tags) of
-					 false ->
-						 erl_syntax:tuple(
-							 [erl_syntax:atom(jcall),
-								 erl_syntax:atom(ModuleName),
-								 erl_syntax:atom(actual_callback),
-								 erl_syntax:list(
-									 [erl_syntax:abstract(Code),
-										 map_abstract(template_gen:callback_to_map(Callback)),
-										 erl_syntax:tuple([this_call(This),
-											 calls_for_with_size_normal(Params)])
-									 ])]);
-					 true -> erl_syntax:abstract(this)
-				 end])
-		end
-		|| {acall, Code, (#diagram_node{content = Callback} = Node), {This, Params}} <- Calls].
+    [
+     begin
+	 IsThis = lists:member(this, Node#diagram_node.tags),
+	 UnderscoreIfNe = (case (This) of
+			       static -> [];
+			       Else -> [Else]
+			   end ++ Params),
+	 erl_syntax:clause(
+	   [erl_syntax:variable(utils:underscore_if_true(utils:underscore_if_ne("Size", UnderscoreIfNe), IsThis)),
+	    erl_syntax:variable(utils:underscore_if_true("WhatToReturn", IsThis)),
+	    erl_syntax:variable(utils:underscore_if_true(utils:underscore_if_ne("State", UnderscoreIfNe), IsThis)),
+	    erl_syntax:abstract(Code)],
+	   none,
+	   [case lists:member(this, Node#diagram_node.tags) of
+		false ->
+		    erl_syntax:tuple(
+		      [erl_syntax:atom(jcall),
+		       erl_syntax:atom(ModuleName),
+		       erl_syntax:atom(actual_callback),
+		       erl_syntax:list(
+			 [erl_syntax:abstract(Code),
+			  erl_syntax:variable("WhatToReturn"),
+			  map_abstract(template_gen:callback_to_map(Callback)),
+			  erl_syntax:tuple([this_call(This),
+					    calls_for_with_size_normal(Params)])
+			 ])]);
+		true -> erl_syntax:abstract(this)
+	    end])
+     end || {acall, Code, (#diagram_node{content = Callback} = Node), {This, Params}} <- Calls].
 
-
-this_call(List) when is_list(List) -> calls_for(List);
+this_call({_, List} = T) when is_list(List) -> calls_for(T);
 this_call(Else) -> erl_syntax:abstract(Else).
 
 calls_for_with_size(List) ->
@@ -243,11 +227,13 @@ calls_for_with_size_loop([Loop | Rest]) ->
 calls_for_with_size_normal(List) ->
 	erl_syntax:list(lists:map(fun calls_for/1, List)).
 
-calls_for(Node) -> calls_for_aux(Node, erl_syntax:variable("Size")).
-calls_for_aux(Node, Size) -> erl_syntax:application(
-		      erl_syntax:atom(args_for_op),
-		      [Size, erl_syntax:variable("State"),
-		       erl_syntax:string(Node)]).
+calls_for({WhatToReturn, Node}) ->
+    calls_for_aux({WhatToReturn, Node}, erl_syntax:variable("Size")).
+calls_for_aux({WhatToReturn, Node}, Size) ->
+    erl_syntax:application(
+      erl_syntax:atom(args_for_op),
+      [Size, erl_syntax:abstract(WhatToReturn), erl_syntax:variable("State"),
+       erl_syntax:string(Node)]).
 
 split_calls(List) -> split_calls(List, {[], []}).
 split_calls([], Tuple) -> Tuple;
