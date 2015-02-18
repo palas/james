@@ -97,7 +97,7 @@ is_control_dep(_) -> false.
 
 is_usage_dep(#diagram_arc{content = this}) -> true;
 is_usage_dep(#diagram_arc{content = {param, _}}) -> true;
-is_usage_dep(#diagram_arc{content = _}) -> false.
+is_usage_dep(_) -> false.
 
 get_node_by_id(NodeId, #drai{dnodes = DNodes}) -> dict:find(NodeId, DNodes).
 get_nodes_by_ids([], _Drai) -> [];
@@ -709,22 +709,36 @@ fun_resolve_id(Drai) ->
 highlight_loops(Drai) ->
     TopNodesSet = sets:from_list(dict:fetch_keys(Drai#drai.dnodes)),
     ArcSet = element(1, sets:fold(fun dfs_loop_detection/2,
-				  {sets:new(), sets:new(), Drai},
+				  {sets:new(), sets:new(), Drai, 0, [], sets:new()},
 				  TopNodesSet)),
     highlight_arcs_set(ArcSet, Drai).
 
-dfs_loop_detection(Node, {ArcSet, Visited, Drai}) ->
-    ThisNodeSet = sets:from_list([Node]),
-    NewVisited = sets:add_element(Node, Visited),
-    ExpandedNodeSet = expand_nodes_down_wt_arcfilter(fun is_usage_dep/1, ThisNodeSet, Drai),
-    NewArcSet = element(1, sets:fold(fun get_loopback_arcs_fold/2,
-				     {ArcSet, NewVisited},
-				     sets:filter(fun is_usage_dep/1, get_arcs_down(ThisNodeSet, Drai)))),
-    NewNodeSet = sets:subtract(ExpandedNodeSet, NewVisited),
-    {element(1, sets:fold(fun dfs_loop_detection/2,
-			  {NewArcSet, NewVisited, Drai},
-			  NewNodeSet)),
-     Visited, Drai}.
+dfs_loop_detection(Node, {ArcSet, Visited, Drai, Level, VisitedList, TotalVisited}) ->
+    case sets:is_element(Node, TotalVisited) of
+	false -> ThisNodeSet = sets:from_list([Node]),
+		 NewVisited = sets:add_element(Node, Visited),
+		 NewVisitedList = add_edges(Drai, Node, VisitedList),
+		 ExpandedNodeSet = expand_nodes_down_wt_arcfilter(fun is_usage_dep/1, ThisNodeSet, Drai),
+		 {NewArcSet, _, _, _} = sets:fold(fun get_loopback_arcs_fold/2,
+						  {ArcSet, NewVisited, Level + 1, NewVisitedList},
+						  sets:filter(fun is_usage_dep/1, get_arcs_down(ThisNodeSet, Drai))),
+		 NewNodeSet = sets:subtract(ExpandedNodeSet, NewVisited),
+		 {NewNewArcSet, _, _, _, _, NewTotalVisited} = sets:fold(fun dfs_loop_detection/2,
+									 {NewArcSet, NewVisited, Drai, Level + 1,
+									  NewVisitedList, TotalVisited},
+									 NewNodeSet),
+		 NewNewTotalVisited = sets:add_element(Node, NewTotalVisited),
+		 {NewNewArcSet, Visited, Drai, Level, VisitedList, NewNewTotalVisited};
+	true -> {ArcSet, Visited, Drai, Level, VisitedList, TotalVisited}
+    end.
+
+add_edges(_, NewNode, []) -> [NewNode];
+add_edges(Drai, NewNode, [Parent|_] = OldList) ->
+    ArcsList = sets:to_list(get_arcs_down(sets:from_list([Parent]), Drai)),
+    FilteredArcsList = [Arc || (#diagram_arc{id_start = A, id_end = B} = Arc) <- ArcsList, A =:= Parent, B =:= NewNode],
+    [NewNode|(FilteredArcsList ++ OldList)].
+
+not_eq(X) -> fun (Y) -> X =/= Y end.
 
 get_top_nodes(#drai{dnodes = DNodes,
 		    arcst = ArcsTo}) ->
@@ -742,10 +756,14 @@ add_control_nodes_to_set(Key, Node, Set) ->
 	true -> sets:add_element(Key, Set)
     end.
 
-get_loopback_arcs_fold(Value, {Set, VisitedNodeSet}) ->
+get_loopback_arcs_fold(Value, {Set, VisitedNodeSet, Level, VisitedList}) ->
     case sets:is_element(get_arc_to(Value), VisitedNodeSet) of
-	true -> {sets:add_element(Value, Set), VisitedNodeSet};
-	false -> {Set, VisitedNodeSet}
+	true ->
+	    begin
+		LoopElements = sets:filter(fun is_usage_dep/1, sets:from_list([Value|lists:takewhile(not_eq(get_arc_to(Value)),VisitedList)])),
+		{sets:union(LoopElements, Set), VisitedNodeSet, Level, VisitedList}
+	    end;
+	false -> {Set, VisitedNodeSet, Level, VisitedList}
     end.
 
 highlight_arcs_set(ArcSet, Drai) ->
