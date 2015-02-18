@@ -248,9 +248,9 @@ gen_bas_connections(#callback{kind = enter_method} = Callback, TInfo) ->
     {TInfo2, _} = fetch_or_create_values(Deps, TInfo), % ResDeps is a list of ids of nodes
 						       % maybe just created if the id is negative, it
 						       % means it does not exist
-%%     {TInfo3, _} = create_usage_values(Deps, TInfo2, dummy), % ResDeps is a list of ids of nodes
-%% 						            % maybe just created if the id is negative, it
-%% 						            % means it does not exist
+%    {TInfo3, _} = create_usage_values(Deps, TInfo2, first_part), % ResDeps is a list of ids of nodes
+						            % maybe just created if the id is negative, it
+						            % means it does not exist
     TInfo2;                                     % If is exit method, we add it to the graph
 						% if it has dependencies, we link the dependencies
 gen_bas_connections(#callback{kind = exit_method} = Callback, TInfo) ->
@@ -308,7 +308,7 @@ fetch_or_create_values(Deps, TInfo) ->
 
 gen_par_types(0, _) -> [];
 gen_par_types(N, PN) -> [{param, PN}|gen_par_types(N - 1, PN + 1)].
-gen_par_types(N) -> [this|gen_par_types(N - 1, 0)].
+gen_par_types(N) -> [this|gen_par_types(N - 1, 1)].
 
 fetch_or_create_value(Dep, TInfo) when is_atom(Dep) -> {-1, TInfo};
 fetch_or_create_value(#value{} = Value, TInfo) ->
@@ -324,11 +324,18 @@ create_usage_values(Deps, TInfo, Id) ->
 swap_tuple({A, B}) -> {B, A}.
 
 create_usage_value({_, Dep}, TInfo, _Id) when is_atom(Dep) -> {-1, TInfo};
+%% create_usage_value({Type, #value{} = Value}, TInfo, first_part) ->
+%%     case find_dependency_usage(Value, TInfo) of
+%% 	{ok, Id} -> {Id, TInfo};
+%% 	error -> {TInfo2, Id} = add_value_to_graph(Value, TInfo),
+%%  		 {ok, IId} = find_dependency(Value, TInfo),
+%%  		 {dummy, store_dependency_usage(Value, TInfo2, IId, Type)}
+%%     end;
 create_usage_value({Type, #value{} = Value}, TInfo, Id) ->
     LastId = case find_dependency_usage(Value, TInfo) of
 		 {ok, IId} -> IId;
 		 error -> {ok, IId} = find_dependency(Value, TInfo),
-              {result, IId}
+              {return, IId}
 	     end,
     {{Type, LastId}, store_dependency_usage(Value, TInfo, Id, Type)}.
 
@@ -373,14 +380,14 @@ add_value_to_graph(Value, TInfo) ->
 link_this_to_one(-1, _, TInfo) -> {TInfo, -1};
 link_this_to_one(Ori, Dest, TInfo) ->
     case usage_enabled(TInfo) of
-	false ->
+	_ ->
 	    begin
 		{TInfo2, Id} = get_new_entity_id(TInfo),
 		Arc = mk_arc(Id, Ori, Dest, [dashed], this),
 		TInfo3 = add_to_entity_index(Id, Arc, TInfo2),
 		{TInfo3, Id}
-	    end;
-	true -> {TInfo, -1}
+	    end
+%	true -> {TInfo, -1}
     end.
 
 which_http_tag([is_before|_]) -> is_before;
@@ -418,21 +425,21 @@ tag_entry_point(Id, #temp_info{entity_index = EIndex} = TempInfo) ->
 link_all_to_one(Deps, Dest, TInfo) ->
     lists:foldl(fun ({N, X}, TI) ->
                         case usage_enabled(TI) of
-			    false -> link_one_to_one_param(X, Dest, TI, N);
-			    true -> TI
+			    _ -> link_one_to_one_param(X, Dest, TI, N)
+%			    true -> TI
                         end
 		end, TInfo,
 		lists:zip(lists:seq(1, length(Deps)), Deps)).
 
 link_one_to_one_param(Ori, Dest, TInfo, ParamNumber) ->
     case usage_enabled(TInfo) of
-	false ->
+	_ ->
 	    begin
 		{TInfo2, Id} = get_new_entity_id(TInfo),
 		Arc = mk_arc(Id, Ori, Dest, [solid], {param, ParamNumber}),
 		add_to_entity_index(Id, Arc, TInfo2)
-	    end;
-	true -> TInfo
+	    end
+%	true -> TInfo
     end.
 
 link_all_usage_to_one(Deps, Dest, TInfo) ->
@@ -445,6 +452,7 @@ link_all_usage_to_one(Deps, Dest, TInfo) ->
 
 usage_enabled(#temp_info{config = #config{track_usage = UsageEnabled}}) -> UsageEnabled.
 
+link_one_to_one_usage(_Ori, _Dest, TInfo, return, _Type) -> TInfo;
 link_one_to_one_usage(Ori, Dest, TInfo, UsageInfo, Type) ->
     {TInfo2, Id} = get_new_entity_id(TInfo),
     Arc = mk_arc(Id, Ori, Dest, [dotted], Type, UsageInfo),

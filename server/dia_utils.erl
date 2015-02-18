@@ -88,15 +88,16 @@ filter_plus_from(Filter, Arc, Set) ->
 		false -> Set
 	end.
 
-is_data_dep(#diagram_arc{content = this}) -> true;
+is_data_dep(#diagram_arc{content = this, start_type = return}) -> true;
 is_data_dep(#diagram_arc{content = {param, _}}) -> true;
 is_data_dep(_) -> false.
 
 is_control_dep(#diagram_arc{content = http_order}) -> true;
 is_control_dep(_) -> false.
 
-is_usage_dep(#diagram_arc{content = {usage, _}}) -> true;
-is_usage_dep(_) -> false.
+is_usage_dep(#diagram_arc{content = this}) -> true;
+is_usage_dep(#diagram_arc{content = {param, _}}) -> true;
+is_usage_dep(#diagram_arc{content = _}) -> false.
 
 get_node_by_id(NodeId, #drai{dnodes = DNodes}) -> dict:find(NodeId, DNodes).
 get_nodes_by_ids([], _Drai) -> [];
@@ -195,9 +196,8 @@ dup_arc_fold(_, #diagram_arc{
 		  dict:store(Id, Arc, DArcs)}
     end.
 
-get_tran_prop(#diagram_arc{properties = Prop,
-			   content = Content}) ->
-    {Prop, Content}.
+get_tran_prop(#diagram_arc{content = Content}) ->
+    Content.
 
 get_tran_prop_and_dmn(#diagram_arc{id_end = DestId,
 				   properties = Prop,
@@ -716,10 +716,10 @@ highlight_loops(Drai) ->
 dfs_loop_detection(Node, {ArcSet, Visited, Drai}) ->
     ThisNodeSet = sets:from_list([Node]),
     NewVisited = sets:add_element(Node, Visited),
-    ExpandedNodeSet = expand_nodes_down_wt_arcfilter(fun is_data_dep/1, ThisNodeSet, Drai),
+    ExpandedNodeSet = expand_nodes_down_wt_arcfilter(fun is_usage_dep/1, ThisNodeSet, Drai),
     NewArcSet = element(1, sets:fold(fun get_loopback_arcs_fold/2,
 				     {ArcSet, NewVisited},
-				     sets:filter(fun is_data_dep/1, get_arcs_down(ThisNodeSet, Drai)))),
+				     sets:filter(fun is_usage_dep/1, get_arcs_down(ThisNodeSet, Drai)))),
     NewNodeSet = sets:subtract(ExpandedNodeSet, NewVisited),
     {element(1, sets:fold(fun dfs_loop_detection/2,
 			  {NewArcSet, NewVisited, Drai},
