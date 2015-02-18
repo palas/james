@@ -764,18 +764,20 @@ generate_subgraphs(#drai{dnodes = DNodes} = Drai) ->
 -spec find_class(#diagram_node{}, #drai{}) -> #drai{}.
 find_class(#diagram_node{id = NodeId, cluster = Cluster, tags = Tags} = Node, #drai{dnodes = DNodes} = Drai) ->
 	ChildNodes = expand_nodes_down_wt_arcfilter(fun is_data_dep/1, sets:from_list([NodeId]), Drai),
-	NamesAndNodes = get_method_names([], Cluster, ChildNodes, Drai),
+	NamesAndNodes = get_method_names([], Cluster, ChildNodes, Drai, sets:new()),
 	{Class, NewDNodes} = compute_class_and_set_for_children(NamesAndNodes, Tags, DNodes),
 	Drai#drai{dnodes = dict:store(NodeId, Node#diagram_node{class = Class}, NewDNodes)}.
 
-get_method_names(MNList, Cluster, NodeSet, Drai) ->
-	case sets:size(NodeSet) of
-		0 -> MNList;
-		_ -> {NodeIdSet, ListOfMethodNames, _} =
-			 lists:foldl(fun get_method_names_aux/2, {sets:new(), MNList, Cluster},
-				     get_nodes_by_ids(sets:to_list(NodeSet), Drai)),
-		     get_method_names(ListOfMethodNames, Cluster, expand_nodes_down_wt_arcfilter(fun is_data_dep/1, NodeIdSet, Drai), Drai)
-	end.
+get_method_names(MNList, Cluster, FullNodeSet, Drai, TraversedNodes) ->
+    NodeSet = sets:subtract(FullNodeSet, TraversedNodes),
+    NewTraversedNodes = sets:union(NodeSet, TraversedNodes),
+    case sets:size(NodeSet) of
+	0 -> MNList;
+	_ -> {NodeIdSet, ListOfMethodNames, _} =
+		 lists:foldl(fun get_method_names_aux/2, {sets:new(), MNList, Cluster},
+			     get_nodes_by_ids(sets:to_list(NodeSet), Drai)),
+	     get_method_names(ListOfMethodNames, Cluster, expand_nodes_down_wt_arcfilter(fun is_data_dep/1, NodeIdSet, Drai), Drai, NewTraversedNodes)
+    end.
 
 get_method_names_aux(#diagram_node{id = Id, cluster = Cluster, http_request = no,
 				   content = #callback{method_name = MethodName}} = Node,
