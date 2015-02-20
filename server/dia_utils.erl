@@ -70,6 +70,9 @@ get_arc_id(#diagram_arc{id = Id}) -> Id.
 get_arc_from(#diagram_arc{id_start = Id}) -> Id.
 get_arc_to(#diagram_arc{id_end = Id}) -> Id.
 
+is_diamond_node(#drai{dnodes = DNodes}, Id) ->
+    #diagram_node{properties = Props} = dict:fetch(Id, DNodes),
+    lists:member(diamond, Props).
 
 mk_filter_plus_to(Drai, Filter) ->
 	fun (Id, Set) -> filter_plus_to(Filter, dict:fetch(Id, Drai#drai.darcs), Set) end.
@@ -708,28 +711,36 @@ fun_resolve_id(Drai) ->
 
 highlight_loops(Drai) ->
     TopNodesSet = sets:from_list(dict:fetch_keys(Drai#drai.dnodes)),
-    ArcSet = element(1, sets:fold(fun dfs_loop_detection/2,
-				  {sets:new(), sets:new(), Drai, 0, [], sets:new()},
-				  TopNodesSet)),
-    highlight_arcs_set(ArcSet, Drai).
+    {ArcSet, _, NewDrai, _, _, _, _} = sets:fold(fun dfs_loop_detection/2,
+						 {sets:new(), sets:new(), Drai, 0, 0, [], sets:new()},
+						 TopNodesSet),
+    NewNewDrai = highlight_arcs_set(ArcSet, NewDrai),
+    choose_safe_arcs(NewNewDrai).
 
-dfs_loop_detection(Node, {ArcSet, Visited, Drai, Level, VisitedList, TotalVisited}) ->
+dfs_loop_detection(Node, {ArcSet, Visited, Drai, Level, SafeLevel, VisitedList, TotalVisited}) ->
     case sets:is_element(Node, TotalVisited) of
 	false -> ThisNodeSet = sets:from_list([Node]),
 		 NewVisited = sets:add_element(Node, Visited),
 		 NewVisitedList = add_edges(Drai, Node, VisitedList),
 		 ExpandedNodeSet = expand_nodes_down_wt_arcfilter(fun is_usage_dep/1, ThisNodeSet, Drai),
-		 {NewArcSet, _, _, _} = sets:fold(fun get_loopback_arcs_fold/2,
-						  {ArcSet, NewVisited, Level + 1, NewVisitedList},
-						  sets:filter(fun is_usage_dep/1, get_arcs_down(ThisNodeSet, Drai))),
+		 NextArcs = sets:filter(fun is_usage_dep/1, get_arcs_down(ThisNodeSet, Drai)),
+		 IsDiamond = is_diamond_node(Drai, Node),
+		 {NewDrai, NewSafeLevel} =
+		     sets:fold(fun (E, A) -> update_safe_level(IsDiamond, E, A) end,
+			       {Drai, SafeLevel}, NextArcs),
+		 {NewArcSet, _, _, _} =
+		     sets:fold(fun get_loopback_arcs_fold/2,
+			       {ArcSet, NewVisited, Level + 1, NewVisitedList},
+			       NextArcs),
 		 NewNodeSet = sets:subtract(ExpandedNodeSet, NewVisited),
-		 {NewNewArcSet, _, _, _, _, NewTotalVisited} = sets:fold(fun dfs_loop_detection/2,
-									 {NewArcSet, NewVisited, Drai, Level + 1,
-									  NewVisitedList, TotalVisited},
-									 NewNodeSet),
+		 {NewNewArcSet, _, NewNewDrai, _, _, _, NewTotalVisited} =
+		     sets:fold(fun dfs_loop_detection/2,
+			       {NewArcSet, NewVisited, NewDrai, Level + 1, NewSafeLevel + 1,
+				NewVisitedList, TotalVisited},
+			       NewNodeSet),
 		 NewNewTotalVisited = sets:add_element(Node, NewTotalVisited),
-		 {NewNewArcSet, Visited, Drai, Level, VisitedList, NewNewTotalVisited};
-	true -> {ArcSet, Visited, Drai, Level, VisitedList, TotalVisited}
+		 {NewNewArcSet, Visited, NewNewDrai, Level, SafeLevel, VisitedList, NewNewTotalVisited};
+	true -> {ArcSet, Visited, Drai, Level, SafeLevel, VisitedList, TotalVisited}
     end.
 
 add_edges(_, NewNode, []) -> [NewNode];
@@ -756,11 +767,22 @@ add_control_nodes_to_set(Key, Node, Set) ->
 	true -> sets:add_element(Key, Set)
     end.
 
+update_safe_level(IsDiamond, #diagram_arc{safe_index = Idx} = Arc, {Drai, SafeLevel}) ->
+    NewIdx = case {IsDiamond, Idx, SafeLevel} of
+		 {true, Idx, SafeLevel} when (SafeLevel < Idx) -> SafeLevel;
+		 {false, Idx, SafeLevel} when (SafeLevel > Idx) orelse (is_atom(Idx)) -> SafeLevel;
+		 {_, _, _} -> Idx
+	     end,
+    NewDrai = update_arcs([Arc#diagram_arc{safe_index = NewIdx}], Drai),
+    {NewDrai, NewIdx}.
+
 get_loopback_arcs_fold(Value, {Set, VisitedNodeSet, Level, VisitedList}) ->
     case sets:is_element(get_arc_to(Value), VisitedNodeSet) of
 	true ->
 	    begin
-		LoopElements = sets:filter(fun is_usage_dep/1, sets:from_list([Value|lists:takewhile(not_eq(get_arc_to(Value)),VisitedList)])),
+		LoopElements = sets:filter(fun is_usage_dep/1,
+					   sets:from_list([Value|lists:takewhile(
+								   not_eq(get_arc_to(Value)),VisitedList)])),
 		{sets:union(LoopElements, Set), VisitedNodeSet, Level, VisitedList}
 	    end;
 	false -> {Set, VisitedNodeSet, Level, VisitedList}
@@ -862,6 +884,14 @@ get_base_cluster_nodes(NodeId, #diagram_node{http_request = {Method, URL} = HR} 
     {dict:store(HR, ClusterId, ClusterDict), sets:add_element(NewNode, Set), dict:store(NodeId, NewNode, DNodes)};
 get_base_cluster_nodes(_, _, Acc) -> Acc.
 
+choose_safe_arcs(#drai{darcs = Darcs} = Drai) ->
+    {_, Groups} = lists:unzip(group_arcs_dict_by_to_nodeid(Darcs)),
+    UpdatedArcs = lists:foldl(fun choose_safe_arc/2, [], Groups),
+    update_arcs(UpdatedArcs, Drai).
+
+choose_safe_arc(Group, Acc) ->
+    [{_, BestArc}|_] = lists:sort([{El#diagram_arc.safe_index, El} || El <- Group]),
+    [BestArc#diagram_arc{is_safe = true}|Acc].
 
 is_control_node(#diagram_node{http_request = no}) -> false;
 is_control_node(_) -> true.
@@ -885,7 +915,8 @@ sort_codes(Drai, Codes, Mode) ->
 			      (#diagram_arc{content = {param, _}}) -> false;
 			      (_) -> true end,
 			  utils:sort_using(fun code_sorter/1, Codes)), Mode} of
-	{[#diagram_arc{id_start = Id, content = this, start_type = Type}|Rest], normal} -> {{Type, Id}, clean_arcs(normal, Drai, Rest)};
+	{[#diagram_arc{id_start = Id, content = this, start_type = Type}|Rest], normal} ->
+	    {{Type, Id}, clean_arcs(normal, Drai, Rest)};
 	{Rest, normal} -> {static, clean_arcs(normal, Drai, Rest)};
 	{Rest, diamond} -> clean_arcs(diamond, Drai, Rest)
     end.
@@ -895,8 +926,8 @@ clean_arcs(diamond, Drai, List) -> clean_arcs_diamond(Drai, List).
 clean_arcs(#diagram_arc{id_start = Id, start_type = Type}) -> {Type, Id}.
 
 clean_arcs_diamond(_Drai, List) ->
-	[{case Loop of true -> loop; false -> normal end, {Type, Start}}
-	|| #diagram_arc{id_start = Start, is_loop = Loop, start_type = Type} <- List].
+	[{case Safe of false -> loop; true -> normal end, {Type, Start}}
+	|| #diagram_arc{id_start = Start, is_loop = _Loop, is_safe = Safe, start_type = Type} <- List].
 %TODO: remove dead ends
 
 code_sorter(#diagram_arc{content = this}) -> -1;
