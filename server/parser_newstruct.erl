@@ -319,7 +319,8 @@ fetch_or_create_value(#value{} = Value, TInfo) ->
     end.
 
 create_usage_values(Deps, TInfo, Id) ->
-  swap_tuple(lists:mapfoldl(fun (A, B) -> create_usage_value(A, B, Id) end, TInfo, lists:zip(gen_par_types(length(Deps)), Deps))).
+    swap_tuple(lists:mapfoldl(fun (A, B) -> create_usage_value(A, B, Id) end,
+			      TInfo, lists:zip(gen_par_types(length(Deps)), Deps))).
 
 swap_tuple({A, B}) -> {B, A}.
 

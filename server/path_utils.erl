@@ -114,7 +114,7 @@ group_paths(PathList) ->
     utils:group_by(fun compare_paths/1, NewNewPathList).
 
 has_not_path_loop(#path{node_ids = List}) ->
-    length(lists:usort(List)) =:= length(List).
+    length(lists:usort(lists:concat(List))) =:= length(lists:concat(List)).
 
 not_reached_top(#path{cur_list_nodes = []}) -> false;
 not_reached_top(_) -> true.

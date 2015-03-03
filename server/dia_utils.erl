@@ -238,7 +238,7 @@ compare_arcs(A) -> get_tran_prop(A).
 
 add_diamond_if_several([A]) -> [A];
 add_diamond_if_several(Several) ->
-    DiaId = "diamond" ++ get_arc_to(hd(Several)) ++ "0"
+    DiaId = "diamond" ++ get_arc_to(hd(Several)) ++ "o"
 	++ get_arc_id(hd(Several)),
     [#diagram_node{id = DiaId, label = "oneOf", properties = [diamond]},
      #diagram_arc{id = "trans" ++ DiaId, id_start = DiaId,
