@@ -46,7 +46,7 @@
 	 initial_state_raw/0, add_all_params_to_state_raw/3, get_instance_of_raw/3,
 	 get_instance_of_raw_aux/3, get_num_var_raw/1, add_checks/2, control_add/3,
 	 used_and_res/1, used_and_fix/2, used_or/1, remove_result_tag/1,
-	 add_weights/3, normalise_weights/1]).
+	 add_weights/3, normalise_weights/1, set_weights/2]).
 
 
 % Symbolic state accessors
@@ -191,3 +191,5 @@ update_symsubstate(Else, Acc) when is_tuple(Else) ->
 update_symsubstate(Else, Acc) when is_list(Else) ->
     lists:foldl(fun update_symsubstate/2, Acc, Else);
 update_symsubstate(_Else, Acc) -> Acc.
+
+set_weights(N, List) -> [{N, El} || El <- List].

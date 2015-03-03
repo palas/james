@@ -84,12 +84,14 @@ reuse_fun(_Module) ->
 	    erl_syntax:variable("State")),
 	  erl_syntax:variable("Code")],
 	 [],
-	 [erl_syntax:application(
-	    erl_syntax:atom(args_for),
-	    [erl_syntax:variable("Size"),
-	     erl_syntax:variable("WhatToReturn"),
-	     erl_syntax:variable("State"),
-	     erl_syntax:variable("Code")])]),
+	 [erl_syntax:macro(
+	    erl_syntax:variable("LAZY"),
+	    [erl_syntax:application(
+	       erl_syntax:atom(args_for),
+	       [erl_syntax:variable("Size"),
+		erl_syntax:variable("WhatToReturn"),
+		erl_syntax:variable("State"),
+		erl_syntax:variable("Code")])])]),
        erl_syntax:clause(
 	 [erl_syntax:variable("Size"),
 	  erl_syntax:variable("WhatToReturn"),
@@ -126,16 +128,24 @@ reuse_fun(_Module) ->
 	       [erl_syntax:macro(
 		  erl_syntax:variable("LAZY"),
 		  [erl_syntax:application(
-		     erl_syntax:atom(oneof),
+		     erl_syntax:atom(frequency),
 		     [erl_syntax:infix_expr(
-			erl_syntax:variable("List"),
+			erl_syntax:application(
+			  erl_syntax:atom(utils),
+			  erl_syntax:atom(set_weights),
+			  [erl_syntax:integer(3),
+			   erl_syntax:variable("List")]),
 			erl_syntax:operator("++"),
 			erl_syntax:application(
-			  erl_syntax:atom(args_for),
-			  [erl_syntax:variable("Size"),
-			   erl_syntax:variable("WhatToReturn"),
-			   erl_syntax:variable("State"),
-			   erl_syntax:variable("Code")]))])])])])])]).
+			  erl_syntax:atom(utils),
+			  erl_syntax:atom(set_weights),
+			  [erl_syntax:integer(1),
+			   erl_syntax:application(
+			     erl_syntax:atom(args_for),
+			     [erl_syntax:variable("Size"),
+			      erl_syntax:variable("WhatToReturn"),
+			      erl_syntax:variable("State"),
+			      erl_syntax:variable("Code")])]))])])])])])]).
 
 header(Module) ->
   [erl_syntax:attribute(erl_syntax:atom(module),[erl_syntax:atom(Module)]),
