@@ -358,6 +358,7 @@ store_dependency(#value{} = Value, #temp_info{dependency_index = Index} = TInfo,
     TInfo#temp_info{dependency_index = dict:store(parser_utils:extract_id(Value), Id, Index)};
 store_dependency(_, TInfo, _) -> TInfo.
 
+store_dependency_usage(#value{type = null,value = null}, TInfo, _, _) -> TInfo;
 store_dependency_usage(#value{} = Value, #temp_info{usage_dependency_index = UsageIndex} = TInfo, Type, Id) ->
     TInfo#temp_info{usage_dependency_index = dict:store(parser_utils:extract_id(Value), {Id, Type}, UsageIndex)};
 store_dependency_usage(_, TInfo, _, _) -> TInfo.

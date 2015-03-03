@@ -123,16 +123,19 @@ reuse_fun(_Module) ->
 	     erl_syntax:clause(
 	       [erl_syntax:variable("List")],
 	       [],
-	       [erl_syntax:application(
-		  erl_syntax:atom(oneof),
-		  [erl_syntax:cons(
-		     erl_syntax:application(
-		       erl_syntax:atom(args_for),
-		       [erl_syntax:variable("Size"),
-			erl_syntax:variable("WhatToReturn"),
-			erl_syntax:variable("State"),
-			erl_syntax:variable("Code")]),
-		     erl_syntax:variable("List"))])])])])]).
+	       [erl_syntax:macro(
+		  erl_syntax:variable("LAZY"),
+		  [erl_syntax:application(
+		     erl_syntax:atom(oneof),
+		     [erl_syntax:infix_expr(
+			erl_syntax:variable("List"),
+			erl_syntax:operator("++"),
+			erl_syntax:application(
+			  erl_syntax:atom(args_for),
+			  [erl_syntax:variable("Size"),
+			   erl_syntax:variable("WhatToReturn"),
+			   erl_syntax:variable("State"),
+			   erl_syntax:variable("Code")]))])])])])])]).
 
 header(Module) ->
   [erl_syntax:attribute(erl_syntax:atom(module),[erl_syntax:atom(Module)]),
@@ -168,9 +171,11 @@ oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
 			erl_syntax:variable(utils:underscore_if_ne("State", PNodes)),
 			erl_syntax:abstract(Code)],
 		       none,
-		       [erl_syntax:application(
-			  erl_syntax:atom(oneof),
-			  [calls_for_with_size(PNodes)])])
+		       [erl_syntax:macro(
+			  erl_syntax:variable("LAZY"),
+			  [erl_syntax:application(
+			     erl_syntax:atom(oneof),
+			     [calls_for_with_size(PNodes)])])])
      || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
 call_funcs(ModuleName, _ThisModuleName, Calls) ->
     [
