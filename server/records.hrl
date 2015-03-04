@@ -44,7 +44,7 @@
 -record(obj_info, {first_time, identifier}).
 -record(diagram_node, {id, label, properties = [], is_label_term = false, content, tags = [], http_request = no, cluster = no, class = empty}).
 -record(diagram_arc, {id, id_start, id_end, start_type = return, properties = [], content, tags, is_loop = false, safe_index = none, is_safe = false}).
--record(temp_info, {dependency_index, usage_dependency_index, entity_index, last_entity_id, last_http = none, from_setUp = false, config = none}).
+-record(temp_info, {dependency_index, usage_dependency_index, entity_index, last_entity_id, last_http = none, from_setUp = false, config = none, this_objects = []}).
 -record(drai, {dnodes, darcs, arcsf, arcst}).
 -record(path, {cur_list_nodes, node_ids, arc_ids, depth, ori_node, direction}).
 -record(config, {remove_bubbles = false, highlight_loops = true,

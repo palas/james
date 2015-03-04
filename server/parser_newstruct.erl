@@ -257,23 +257,25 @@ gen_bas_connections(#callback{kind = exit_method} = Callback, TInfo) ->
     Deps = get_dependency_values(Callback), % Deps is a list of values of params
 					    % The first param is this a value may
 					    % be just an atom (meaning it doesn't exist)
-    {TInfo2, [ResThis|ResDeps]} =
-	fetch_or_create_values(Deps, TInfo), % ResDeps is a list of ids of nodes
+    TInfo2 = mark_if_this(Callback, TInfo), % Registers the objects identified as
+                                            % base class "this" to not track usage
+    {TInfo3, [ResThis|ResDeps]} =
+	fetch_or_create_values(Deps, TInfo2), % ResDeps is a list of ids of nodes
 					     % maybe just created if the id is negative, it
 					     % means it does not exist
-    {TInfo3, Id} = add_call_to_graph(Callback, TInfo2), % Id is the id of the new node
-    {TInfo4, [ResThisUsage|ResDepsUsage]} =
-	create_usage_values(Deps, TInfo3, Id), % ResDeps is a list of ids of nodes
+    {TInfo4, Id} = add_call_to_graph(Callback, TInfo3), % Id is the id of the new node
+    {TInfo5, [ResThisUsage|ResDepsUsage]} =
+	create_usage_values(Deps, Callback, TInfo4, Id), % ResDeps is a list of ids of nodes
 					       % maybe just created if the id is negative, it
 					       % means it does not exist
-    {TInfo5, _} = link_this_to_one(ResThis, Id, TInfo4), % Special link for "this" relation
-    TInfo6 = link_control_to_one(Callback, Id, TInfo5), % Special link for traversal http control
-    TInfo7 = link_all_to_one(ResDeps, Id, TInfo6), % Link each dep with new node
-    TInfo8 = link_all_usage_to_one([ResThisUsage|ResDepsUsage], Id, TInfo7), % Link each usage dep with new node
+    {TInfo6, _} = link_this_to_one(ResThis, Id, TInfo5), % Special link for "this" relation
+    TInfo7 = link_control_to_one(Callback, Id, TInfo6), % Special link for traversal http control
+    TInfo8 = link_all_to_one(ResDeps, Id, TInfo7), % Link each dep with new node
+    TInfo9 = link_all_usage_to_one([ResThisUsage|ResDepsUsage], Id, TInfo8), % Link each usage dep with new node
     RetVal = get_return_value(Callback),
-    TInfo9 = store_dependency_usage(RetVal, TInfo8, Id, return), % Store the return value as id
+    TInfo10 = store_dependency_usage(RetVal, Callback, TInfo9, Id, return), % Store the return value as id
 					                         % provided it is a value
-    store_dependency(RetVal, TInfo9, Id). % Store the return value as id
+    store_dependency(RetVal, TInfo10, Id). % Store the return value as id
 					  % provided it is a value
 
 new_temp_info(Config) -> #temp_info{dependency_index = dict:new(),
@@ -318,13 +320,13 @@ fetch_or_create_value(#value{} = Value, TInfo) ->
 		 {Id, store_dependency(Value, TInfo2, Id)}
     end.
 
-create_usage_values(Deps, TInfo, Id) ->
-    swap_tuple(lists:mapfoldl(fun (A, B) -> create_usage_value(A, B, Id) end,
+create_usage_values(Deps, Callback, TInfo, Id) ->
+    swap_tuple(lists:mapfoldl(fun (A, B) -> create_usage_value(A, Callback, B, Id) end,
 			      TInfo, lists:zip(gen_par_types(length(Deps)), Deps))).
 
 swap_tuple({A, B}) -> {B, A}.
 
-create_usage_value({_, Dep}, TInfo, _Id) when is_atom(Dep) -> {-1, TInfo};
+create_usage_value({_, Dep}, _Callback, TInfo, _Id) when is_atom(Dep) -> {-1, TInfo};
 %% create_usage_value({Type, #value{} = Value}, TInfo, first_part) ->
 %%     case find_dependency_usage(Value, TInfo) of
 %% 	{ok, Id} -> {Id, TInfo};
@@ -332,13 +334,13 @@ create_usage_value({_, Dep}, TInfo, _Id) when is_atom(Dep) -> {-1, TInfo};
 %%  		 {ok, IId} = find_dependency(Value, TInfo),
 %%  		 {dummy, store_dependency_usage(Value, TInfo2, IId, Type)}
 %%     end;
-create_usage_value({Type, #value{} = Value}, TInfo, Id) ->
+create_usage_value({Type, #value{} = Value}, Callback, TInfo, Id) ->
     LastId = case find_dependency_usage(Value, TInfo) of
 		 {ok, IId} -> IId;
 		 error -> {ok, IId} = find_dependency(Value, TInfo),
               {return, IId}
 	     end,
-    {{Type, LastId}, store_dependency_usage(Value, TInfo, Id, Type)}.
+    {{Type, LastId}, store_dependency_usage(Value, Callback, TInfo, Id, Type)}.
 
 %% find_dependency(#value{obj_info = #obj_info{identifier = Id}} = Value,
 %% 		#temp_info{dependency_index = Index}) when is_integer(Id) ->
@@ -358,10 +360,20 @@ store_dependency(#value{} = Value, #temp_info{dependency_index = Index} = TInfo,
     TInfo#temp_info{dependency_index = dict:store(parser_utils:extract_id(Value), Id, Index)};
 store_dependency(_, TInfo, _) -> TInfo.
 
-store_dependency_usage(#value{type = null,value = null}, TInfo, _, _) -> TInfo;
-store_dependency_usage(#value{} = Value, #temp_info{usage_dependency_index = UsageIndex} = TInfo, Type, Id) ->
-    TInfo#temp_info{usage_dependency_index = dict:store(parser_utils:extract_id(Value), {Id, Type}, UsageIndex)};
-store_dependency_usage(_, TInfo, _, _) -> TInfo.
+store_dependency_usage(#value{type = null,value = null}, _Callback, TInfo, _, _) -> TInfo;
+store_dependency_usage(#value{obj_info = #obj_info{identifier = OneId}} = Value,
+		       _Callback, #temp_info{usage_dependency_index = UsageIndex,
+					     this_objects = ListThis} = TInfo, Type, Id) ->
+    case lists:member(OneId, ListThis) of
+	true -> TInfo;
+	false -> store_dependency_usage_aux(Value, UsageIndex, TInfo, Type, Id)
+    end;
+store_dependency_usage(Value, _Callback, #temp_info{usage_dependency_index = UsageIndex} = TInfo, Type, Id) ->
+    store_dependency_usage_aux(Value, UsageIndex, TInfo, Type, Id);
+store_dependency_usage(_, _Callback, TInfo, _, _) -> TInfo.
+
+store_dependency_usage_aux(Value, UsageIndex, TInfo, Type, Id) ->
+    TInfo#temp_info{usage_dependency_index = dict:store(parser_utils:extract_id(Value), {Id, Type}, UsageIndex)}.
 
 %    {TInfo3, Id} = add_call_to_graph(Callback, TInfo2), % Id is the id of the new node
 add_call_to_graph(Callback, TInfo) ->
@@ -391,6 +403,25 @@ link_this_to_one(Ori, Dest, TInfo) ->
 	    end
 %	true -> {TInfo, -1}
     end.
+
+mark_if_this(#callback{method_name = This,
+		       return =
+			   #value{
+			      obj_info =
+				  #obj_info{
+				     identifier = Id}}},
+	     #temp_info{config = #config{this_generator = This},
+		        this_objects = ThisList} = TI) ->
+    TI#temp_info{this_objects = lists:usort([Id|ThisList])};
+mark_if_this(#callback{depth = 0,
+		       this =
+			   #value{
+			      obj_info =
+				  #obj_info{identifier = Id}}},
+	     #temp_info{this_objects = ThisList} = TI) ->
+    TI#temp_info{this_objects = lists:usort([Id|ThisList])};
+mark_if_this(_, TI) -> TI.
+
 
 which_http_tag([is_before|_]) -> is_before;
 which_http_tag([is_test|_]) -> is_test;
