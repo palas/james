@@ -146,37 +146,40 @@ prim_funcs(ModuleName, _ThisModuleName, Prim) ->
      || {prim, Code, #diagram_node{content = Val}, none} <- Prim].
 
 oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
-    [erl_syntax:clause([erl_syntax:variable(utils:underscore_if_ne("Size", PNodes)),
-			erl_syntax:variable(utils:underscore_if_ne("State", PNodes)),
-			erl_syntax:variable("_WhatToReturn"),
-			erl_syntax:abstract(Code)],
-		       none,
-		       [case lists:map(fun ({_, X}) -> X end, PNodes) of
-			    [] -> erl_syntax:atom(error);
-			    PNodesFix ->
-				erl_syntax:application(erl_syntax:atom(utils), erl_syntax:atom(used_or),
-						       [erl_syntax:application(
-							  erl_syntax:atom(utils),
-							  erl_syntax:atom(normalise_weights),
-							  [erl_syntax:list_comp(
-							     erl_syntax:application(
-							       erl_syntax:atom(utils),
-							       erl_syntax:atom(add_weights),
-							       [erl_syntax:variable("State"),
-								erl_syntax:variable("Node"),
-								erl_syntax:application(
-								  erl_syntax:atom(used_args_for),
-								  [erl_syntax:variable("Size"),
-								   erl_syntax:variable("State"),
-								   erl_syntax:variable("WhatToReturn"),
-								   erl_syntax:variable("Node")])]),
-							     [erl_syntax:generator(
-								erl_syntax:tuple(
-								  [erl_syntax:variable("WhatToReturn"),
-								   erl_syntax:variable("Node")]),
-								erl_syntax:abstract(PNodesFix))])])])
-			end])
-     || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
+	[erl_syntax:clause(
+	   [erl_syntax:variable(utils:underscore_if_ne("Size", PNodes)),
+	    erl_syntax:variable(utils:underscore_if_ne("State", PNodes)),
+	    erl_syntax:variable("_WhatToReturn"),
+	    erl_syntax:abstract(Code)],
+	   none,
+	   [case PNodes of
+		   [] -> erl_syntax:atom(error);
+		   _ ->	erl_syntax:application(
+			  erl_syntax:atom(utils), erl_syntax:atom(used_or),
+			  [erl_syntax:application(
+			     erl_syntax:atom(utils),
+			     erl_syntax:atom(normalise_weights),
+			     [erl_syntax:list_comp(
+				erl_syntax:application(
+				  erl_syntax:atom(utils),
+				  erl_syntax:atom(add_weights),
+				  [erl_syntax:variable("State"),
+				   erl_syntax:variable("Node"),
+				   erl_syntax:application(
+				     erl_syntax:atom(used_args_for),
+				     [erl_syntax:variable("NewSize"),
+				      erl_syntax:variable("State"),
+				      erl_syntax:variable("WhatToReturn"),
+				      erl_syntax:variable("Node")])]),
+				[erl_syntax:generator(
+				   erl_syntax:tuple(
+				     [erl_syntax:variable("NewSize"),
+				      erl_syntax:variable("WhatToReturn"),
+				      erl_syntax:variable("Node")]),
+				   args_for_with_size(PNodes)
+				  )])])])
+	   end])
+	 || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
 
 check_sig({A, _}, {B, _}) when (is_list(A) andalso is_atom(B)) ->
     false;
@@ -208,7 +211,7 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 							 [erl_syntax:match_expr(
 							    erl_syntax:variable("Params"),
 							    erl_syntax:tuple([this_call(This),
-									      calls_for_normal(Params)])),
+									      gen_calls_for_with_size_normal(call, Params)])),
 							  erl_syntax:match_expr(
 							    erl_syntax:variable("CParams"),
 							    erl_syntax:application(
@@ -234,19 +237,53 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 	 end
 	 || {acall, Code, (#diagram_node{content = Callback} = Node), {This, Params}, {EThis, EParams}} <- Calls].
 
-this_call({CallType, List}) when is_list(List) -> calls_for({CallType, List});
+this_call({CallType, List}) when is_list(List) -> gen_calls_for(call, {CallType, List});
 this_call(Else) -> erl_syntax:abstract(Else).
 
-calls_for_normal(List) ->
-	erl_syntax:list(lists:map(fun calls_for/1, List)).
 
+args_for_with_size(List) ->
+	case split_calls(List) of
+		{Normal, []} -> gen_calls_for_with_size_normal(args, Normal);
+		{[], Loop} -> gen_calls_for_with_size_normal(args, Loop);
+		{Normal, Loop} -> erl_syntax:infix_expr(gen_calls_for_with_size_normal(args, Normal),
+							erl_syntax:operator("++"),
+							gen_calls_for_with_size_loop(args, Loop))
+	end.
+gen_calls_for_with_size_loop(OutMode, [Loop]) ->
+	erl_syntax:list_comp(gen_calls_for_aux(OutMode, Loop, erl_syntax:infix_expr(erl_syntax:variable("Size"),
+								       erl_syntax:operator("-"), erl_syntax:integer(1))),
+			     [erl_syntax:infix_expr(erl_syntax:variable("Size"),
+						    erl_syntax:operator(">"),
+						    erl_syntax:integer(0))]);
+gen_calls_for_with_size_loop(OutMode, [Loop | Rest]) ->
+	erl_syntax:infix_expr(gen_calls_for_with_size_loop(OutMode, [Loop]),
+			      erl_syntax:operator("++"),
+			      gen_calls_for_with_size_loop(OutMode, Rest)).
+gen_calls_for_with_size_normal(OutMode, List) ->
+	erl_syntax:list(lists:map(fun (X) -> gen_calls_for(OutMode, X) end, List)).
 
-calls_for({CallType, Node}) -> erl_syntax:application(
-				 erl_syntax:atom(used_args_for),
-				 [erl_syntax:variable("Size"),
-				  erl_syntax:variable("State"),
-				  erl_syntax:abstract(CallType),
-				  erl_syntax:string(Node)]).
+gen_calls_for(OutMode, {CallType, Node}) ->
+	gen_calls_for_aux(OutMode, {CallType, Node}, erl_syntax:variable("Size")).
+calls_for_aux({CallType, Node}, Size) ->
+	erl_syntax:application(
+	  erl_syntax:atom(used_args_for),
+	  [Size, erl_syntax:variable("State"),
+	   erl_syntax:abstract(CallType),
+	   erl_syntax:string(Node)]).
+args_for_aux({CallType, Node}, Size) ->
+	erl_syntax:tuple([Size, erl_syntax:abstract(CallType),
+			  erl_syntax:string(Node)]).
+gen_calls_for_aux(args, {CallType, Node}, Size) ->
+	args_for_aux({CallType, Node}, Size);
+gen_calls_for_aux(call, {CallType, Node}, Size) ->
+	calls_for_aux({CallType, Node}, Size).
+
+split_calls(List) -> split_calls(List, {[], []}).
+split_calls([], Tuple) -> Tuple;
+split_calls([{normal, NodeId}|Rest], {Normal, Loop}) ->
+	split_calls(Rest, {[NodeId|Normal], Loop});
+split_calls([{loop, NodeId}|Rest], {Normal, Loop}) ->
+	split_calls(Rest, {Normal, [NodeId|Loop]}).
 
 map_abstract(List) when is_list(List) ->
     case io_lib:printable_list(List) of
