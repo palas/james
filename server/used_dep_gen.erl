@@ -114,7 +114,8 @@ header(Module) ->
 
 control_funcs(_ModuleName, _ThisModuleName, Prim) ->
     [erl_syntax:clause(
-       [erl_syntax:variable("State"),
+       [erl_syntax:variable("_Size"),
+	erl_syntax:variable("State"),
 	erl_syntax:variable("WhatToReturn"),
 	erl_syntax:abstract(Code)],
        none,
@@ -125,7 +126,8 @@ control_funcs(_ModuleName, _ThisModuleName, Prim) ->
      || {control, Code, _Node, none} <- Prim].
 
 prim_funcs(ModuleName, _ThisModuleName, Prim) ->
-    [erl_syntax:clause([erl_syntax:variable("_State"),
+    [erl_syntax:clause([erl_syntax:variable("_Size"),
+                        erl_syntax:variable("_State"),
 			erl_syntax:variable("WhatToReturn"),
 			erl_syntax:abstract(Code)],
 		       none,
@@ -144,7 +146,8 @@ prim_funcs(ModuleName, _ThisModuleName, Prim) ->
      || {prim, Code, #diagram_node{content = Val}, none} <- Prim].
 
 oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
-    [erl_syntax:clause([erl_syntax:variable(utils:underscore_if_ne("State", PNodes)),
+    [erl_syntax:clause([erl_syntax:variable(utils:underscore_if_ne("Size", PNodes)),
+			erl_syntax:variable(utils:underscore_if_ne("State", PNodes)),
 			erl_syntax:variable("_WhatToReturn"),
 			erl_syntax:abstract(Code)],
 		       none,
@@ -163,7 +166,8 @@ oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
 								erl_syntax:variable("Node"),
 								erl_syntax:application(
 								  erl_syntax:atom(used_args_for),
-								  [erl_syntax:variable("State"),
+								  [erl_syntax:variable("Size"),
+								   erl_syntax:variable("State"),
 								   erl_syntax:variable("WhatToReturn"),
 								   erl_syntax:variable("Node")])]),
 							     [erl_syntax:generator(
@@ -187,7 +191,8 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 	     IsThis = lists:member(this, Node#diagram_node.tags),
 	     SigOk = check_sig({This, Params}, {EParams, EThis}),
 	     erl_syntax:clause(
-	       [erl_syntax:variable(utils:underscore_if_true("State", IsThis orelse (not SigOk))),
+	       [erl_syntax:variable(utils:underscore_if_true("Size", (IsThis orelse (not SigOk)) orelse (is_atom(This) andalso (Params =:= [])))),
+		erl_syntax:variable(utils:underscore_if_true("State", IsThis orelse (not SigOk))),
 		erl_syntax:variable(utils:underscore_if_true("WhatToReturn", IsThis orelse (not SigOk))),
 		erl_syntax:abstract(Code)],
 	       none,
@@ -238,7 +243,8 @@ calls_for_normal(List) ->
 
 calls_for({CallType, Node}) -> erl_syntax:application(
 				 erl_syntax:atom(used_args_for),
-				 [erl_syntax:variable("State"),
+				 [erl_syntax:variable("Size"),
+				  erl_syntax:variable("State"),
 				  erl_syntax:abstract(CallType),
 				  erl_syntax:string(Node)]).
 

@@ -51,7 +51,7 @@ callback({SymState, RawState}, Code, P) ->
     {call, iface, evaluate, [Code|?LET(Params, P,
 				       begin
 					   UpSymState = utils:update_symsubstate(Params, SymSubState),
-					   ?LET({CheckParams, UpSymState2}, utils:add_checks(Code, UpSymState),
+					   ?LET({CheckParams, UpSymState2}, ?SIZED(Size, utils:add_checks(Size, Code, UpSymState)),
 						[{{SymSuperState + 1, UpSymState2}, RawState,
 						  [Params|CheckParams]}])
 				       end)]}.

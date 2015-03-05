@@ -44,7 +44,7 @@
 -export([serialise_trace_with_state/2, update_symsubstate/2, initial_state_sym/0,
 	 add_result_to_state_sym/2, get_instances_of_sym/4, get_num_var_sym/1,
 	 initial_state_raw/0, add_all_params_to_state_raw/3, get_instance_of_raw/3,
-	 get_instance_of_raw_aux/3, get_num_var_raw/1, add_checks/2, control_add/3,
+	 get_instance_of_raw_aux/3, get_num_var_raw/1, add_checks/3, control_add/3,
 	 used_and_res/1, used_and_fix/2, used_or/1, remove_result_tag/1,
 	 add_weights/3, normalise_weights/1, set_weights/2]).
 
@@ -152,8 +152,8 @@ bias_zero(List) ->
 
 
 % ToDo: generate check calls for params
-add_checks(Code, SymSubState) ->
-    ?LET(Checks, remove_result_tag([iface_used_dep:used_args_for(SymSubState, return, Check)
+add_checks(Size, Code, SymSubState) ->
+    ?LET(Checks, remove_result_tag([iface_used_dep:used_args_for(Size, SymSubState, return, Check)
 				    || Check <- iface_check:checks_for(Code), Check =/= Code]),
 	 begin
 	     NewSymSubState = lists:foldr(fun update_symsubstate/2, SymSubState, Checks),
