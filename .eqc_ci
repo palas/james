@@ -1,0 +1,3 @@
+{build, "cd server; erl -make"}.
+{test_path, "server"}.
+{test_root, "server"}.
