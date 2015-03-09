@@ -63,7 +63,7 @@ pop(#lqueue{old_elems = [], left_buffer = [],
 pop(_) -> loop.
 
 reset_loop(#lqueue{new_elems = []} = Q) -> Q;
-reset_loop(#lqueue{right_buffer = Buf, new_elems = List} = Q) ->
+reset_loop(#lqueue{right_buffer = Buf, new_elems = ([_|_] = List)} = Q) ->
     Q#lqueue{right_buffer = [List|Buf], new_elems = []};
 reset_loop(Q) -> Q.
 

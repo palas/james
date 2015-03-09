@@ -253,8 +253,8 @@ pop_next(#state{rep = [_|Rest]} = S, Result, [_LQueue]) ->
 -spec pop_post(S :: eqc_statem:dynamic_state(), 
 	       Args :: [term()], R :: term()) -> true | term().
 pop_post(#state{rep = [token|_]}, [_LQueue], loop) -> true;
-pop_post(#state{rep = [Elem|_]}, [_LQueue], {ok, Elem, _NewLQueue}) -> true;
-pop_post(_, _, _) -> false.
+pop_post(#state{rep = [Elem|_]}, [_LQueue], {ok, Elem, _NewLQueue}) -> true.
+%pop_post(_, _, _) -> false.
 
 %% @doc pop_blocking - Is the operation blocking in this State 
 %% -spec pop_blocking(S :: eqc_statem:symbolic_state(), 
@@ -337,8 +337,8 @@ weight(_S, new) -> 1;
 weight(_S, init) -> 1;
 weight(_S, cons) -> 2;
 weight(_S, pop) -> 1;
-weight(_S, reset_loop) -> 1;
-weight(_S, _Cmd) -> 1.
+weight(_S, reset_loop) -> 1.
+%weight(_S, _Cmd) -> 1.
 
 %% @doc Default generated property
 -spec prop_lqueue() -> eqc:property().
