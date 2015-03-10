@@ -145,7 +145,7 @@ init_pre(_S, [_List]) ->
 		V :: eqc_statem:var(), 
 		Args :: [term()]) -> eqc_statem:symbolic_state().
 init_next(S, LQueue, [List]) ->
-    S#state{lqueue = LQueue, rep = List ++ [token]}.
+    S#state{lqueue = LQueue, rep = nub(List ++ [token])}.
 
 %% @doc init_post - Postcondition for init
 -spec init_post(S :: eqc_statem:dynamic_state(), 
@@ -195,7 +195,7 @@ cons_pre(_S, [_Elem, _LQueue]) ->
 		V :: eqc_statem:var(), 
 		Args :: [term()]) -> eqc_statem:symbolic_state().
 cons_next(#state{rep = List} = S, NewLQueue, [Elem, _LQueue]) ->
-    S#state{lqueue = NewLQueue, rep = List ++ [Elem]}.
+    S#state{lqueue = NewLQueue, rep = nub(List ++ [Elem])}.
 
 %% @doc cons_post - Postcondition for cons
 -spec cons_post(S :: eqc_statem:dynamic_state(), 
@@ -248,6 +248,8 @@ pop_next(#state{rep = [token|Rest]} = S, _Result, [_LQueue]) ->
     S#state{rep = [token|Rest]};
 pop_next(#state{rep = [_|Rest]} = S, Result, [_LQueue]) ->
     S#state{lqueue = {call, erlang, element, [3, Result]}, rep = Rest}.
+%pop_next(_, _, _) -> false.
+
 
 %% @doc pop_post - Postcondition for pop
 -spec pop_post(S :: eqc_statem:dynamic_state(), 
@@ -349,3 +351,5 @@ prop_lqueue() ->
 		pretty_commands(?MODULE, Cmds, {H, S, Res},
 				Res == ok)
 	    end).
+
+nub(List) -> lists:reverse(lists:reverse(List) -- (List -- lists:usort(List))).

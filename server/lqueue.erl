@@ -42,17 +42,35 @@
 -export([new/0, init/1, cons/2, pop/1, reset_loop/1]).
 
 -record(lqueue, {old_elems = [], left_buffer = [],
-		right_buffer = [], new_elems = []}).
+		 right_buffer = [], new_elems = [],
+		 current_elems = sets:new()
+		}).
 
 new() -> #lqueue{}.
 
-init(List) -> #lqueue{old_elems = List}.
+init(List) ->
+    {NewList, Elems} = lists:foldl(fun nub_and_collect/2, {[], sets:new()}, List),
+    #lqueue{old_elems = lists:reverse(NewList),
+	    current_elems = Elems}.
 
-cons(Elem, #lqueue{new_elems = List} = Q) ->
-    Q#lqueue{new_elems = [Elem|List]}.
+nub_and_collect(Elem, {List, Set}) ->
+    case sets:is_element(Elem, Set) of
+	true -> {List, Set};
+	false -> {[Elem|List], sets:add_element(Elem, Set)}
+    end.
 
-pop(#lqueue{old_elems = [Elem|Rest]} = Q) ->
-    {ok, Elem, Q#lqueue{old_elems = Rest}};
+cons(Elem, #lqueue{new_elems = List,
+		   current_elems = Elems} = Q) ->
+    case sets:is_element(Elem, Elems) of
+	false -> Q#lqueue{new_elems = [Elem|List],
+			  current_elems = sets:add_element(Elem, Elems)};
+	true -> Q
+    end.
+
+pop(#lqueue{old_elems = [Elem|Rest],
+	    current_elems = Elems} = Q) ->
+    {ok, Elem, Q#lqueue{old_elems = Rest,
+		        current_elems = sets:del_element(Elem, Elems)}};
 pop(#lqueue{old_elems = [], left_buffer = [Elem|Rest]} = Q) ->
     pop(Q#lqueue{old_elems = lists:reverse(Elem),
 		left_buffer = Rest});
