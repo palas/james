@@ -247,7 +247,7 @@ this_call(Else) -> erl_syntax:abstract(Else).
 
 
 args_for_with_size({Normal, []}) -> gen_calls_for_with_size_normal(args, Normal);
-%args_for_with_size({[], Loop}) -> gen_calls_for_with_size_normal(args, Loop);
+args_for_with_size({[], Loop}) -> gen_calls_for_with_size_normal(args, Loop);
 args_for_with_size({Normal, Loop}) ->
     erl_syntax:infix_expr(gen_calls_for_with_size_normal(args, Normal),
 			  erl_syntax:operator("++"),

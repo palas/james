@@ -738,7 +738,12 @@ compute_safe_levels(#drai{dnodes = DNodes,
 				 |Acc]
 			end,
 			[], DNodes),
-	      dict:fold(fun (Id, #diagram_arc{id_start = St, id_end = End}, Acc) -> [{St, Id, End}|Acc] end,
+	      dict:fold(fun (Id, #diagram_arc{id_start = St, id_end = End} = Arc, Acc) ->
+				case is_usage_dep(Arc) of
+				    true -> [{St, Id, End}|Acc];
+				    false -> Acc
+				end
+			end,
 			[], DArcs)))}.
 
 dfs_loop_detection(Node, {ArcSet, Visited, Drai, Level, VisitedList, TotalVisited}) ->

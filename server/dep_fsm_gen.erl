@@ -140,12 +140,13 @@ reuse_fun(_Module) ->
 			  erl_syntax:atom(utils),
 			  erl_syntax:atom(set_weights),
 			  [erl_syntax:integer(1),
-			   erl_syntax:application(
-			     erl_syntax:atom(args_for),
-			     [erl_syntax:variable("Size"),
-			      erl_syntax:variable("WhatToReturn"),
-			      erl_syntax:variable("State"),
-			      erl_syntax:variable("Code")])]))])])])])])]).
+			   erl_syntax:list(
+			     [erl_syntax:application(
+				erl_syntax:atom(args_for),
+				[erl_syntax:variable("Size"),
+				 erl_syntax:variable("WhatToReturn"),
+				 erl_syntax:variable("State"),
+				 erl_syntax:variable("Code")])])]))])])])])])]).
 
 header(Module) ->
   [erl_syntax:attribute(erl_syntax:atom(module),[erl_syntax:atom(Module)]),
@@ -228,7 +229,7 @@ this_call({_, List} = T) when is_list(List) -> calls_for(T);
 this_call(Else) -> erl_syntax:abstract(Else).
 
 calls_for_with_size({Normal, []}) -> calls_for_with_size_normal(Normal);
-%calls_for_with_size({[], Loop}) -> calls_for_with_size_normal(Loop);
+calls_for_with_size({[], Loop}) -> calls_for_with_size_normal(Loop);
 calls_for_with_size({Normal, Loop}) ->
     erl_syntax:infix_expr(calls_for_with_size_normal(Normal),
 			  erl_syntax:operator("++"),
@@ -261,7 +262,7 @@ split_calls([{best, NodeId}|Rest], {Normal, Loop}) ->
     split_calls(Rest, {[NodeId|Normal], Loop});
 split_calls([{normal, NodeId}|Rest], {Normal, Loop}) ->
     split_calls(Rest, {Normal, [NodeId|Loop]});
-split_calls([{dead_end, _}|Rest], {Normal, Loop}) ->
+split_calls([{dead_end, _NodeId}|Rest], {Normal, Loop}) ->
     split_calls(Rest, {Normal, Loop}).
 
 
@@ -276,3 +277,4 @@ map_abstract(Map) when is_map(Map) ->
 				  map_abstract(Value))
         || {Key, Value} <- maps:to_list(Map)]);
 map_abstract(Else) -> erl_syntax:abstract(Else).
+

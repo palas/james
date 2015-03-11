@@ -160,6 +160,7 @@ write_opts([rectangle]) -> "shape=rectangle";
 write_opts([ellipse]) -> "shape=ellipse";
 write_opts([diamond]) -> "shape=diamond";
 write_opts([thick]) -> "penwidth=4";
+write_opts([{label, Label}]) -> "label=\"" ++ parser_utils:print_escaped(Label) ++ "\"";
 write_opts([{color, R, G, B}]) ->
     Color = make_hex_color(R, G, B),
     "color=\"" ++ Color ++ "\", fontcolor=\"" ++ Color ++ "\"";
