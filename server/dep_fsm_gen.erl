@@ -174,18 +174,24 @@ prim_funcs(ModuleName, _ThisModuleName, Prim) ->
 			  ])])
      || {prim, Code, #diagram_node{content = Val}, none} <- Prim].
 
-oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) -> 
-    [erl_syntax:clause([
-			erl_syntax:variable(utils:underscore_if_ne("Size", PNodes)),
-			erl_syntax:variable("_WhatToReturn"),
-			erl_syntax:variable(utils:underscore_if_ne("State", PNodes)),
-			erl_syntax:abstract(Code)],
-		       none,
-		       [erl_syntax:macro(
-			  erl_syntax:variable("LAZY"),
-			  [erl_syntax:application(
-			     erl_syntax:atom(oneof),
-			     [calls_for_with_size(PNodes)])])])
+oneofs_funcs(_ModuleName, _ThisModuleName, OneOfs) ->
+    
+    [begin
+	 ({A, B} = SplittedCalls) = split_calls(PNodes),
+	 FilteredCalls = A ++ B,
+	 Calls = calls_for_with_size(SplittedCalls),
+	 erl_syntax:clause([
+			    erl_syntax:variable(utils:underscore_if_ne("Size", FilteredCalls)),
+			    erl_syntax:variable("_WhatToReturn"),
+			    erl_syntax:variable(utils:underscore_if_ne("State", FilteredCalls)),
+			    erl_syntax:abstract(Code)],
+			   none,
+			   [erl_syntax:macro(
+			      erl_syntax:variable("LAZY"),
+			      [erl_syntax:application(
+				 erl_syntax:atom(oneof),
+				 [Calls])])])
+     end
      || {oneOf, Code, #diagram_node{http_request = no}, PNodes} <- OneOfs].
 call_funcs(ModuleName, _ThisModuleName, Calls) ->
     [
@@ -221,14 +227,13 @@ call_funcs(ModuleName, _ThisModuleName, Calls) ->
 this_call({_, List} = T) when is_list(List) -> calls_for(T);
 this_call(Else) -> erl_syntax:abstract(Else).
 
-calls_for_with_size(List) ->
-	case split_calls(List) of
-		{Normal, []} -> calls_for_with_size_normal(Normal);
-		{[], Loop} -> calls_for_with_size_normal(Loop);
-		{Normal, Loop} -> erl_syntax:infix_expr(calls_for_with_size_normal(Normal),
-			erl_syntax:operator("++"),
-			calls_for_with_size_loop(Loop))
-	end.
+calls_for_with_size({Normal, []}) -> calls_for_with_size_normal(Normal);
+%calls_for_with_size({[], Loop}) -> calls_for_with_size_normal(Loop);
+calls_for_with_size({Normal, Loop}) ->
+    erl_syntax:infix_expr(calls_for_with_size_normal(Normal),
+			  erl_syntax:operator("++"),
+			  calls_for_with_size_loop(Loop)).
+
 calls_for_with_size_loop([Loop]) ->
 	erl_syntax:list_comp(calls_for_aux(Loop, erl_syntax:infix_expr(erl_syntax:variable("Size"),
 		erl_syntax:operator("-"), erl_syntax:integer(1))),
@@ -252,10 +257,13 @@ calls_for_aux({WhatToReturn, Node}, Size) ->
 
 split_calls(List) -> split_calls(List, {[], []}).
 split_calls([], Tuple) -> Tuple;
+split_calls([{best, NodeId}|Rest], {Normal, Loop}) ->
+    split_calls(Rest, {[NodeId|Normal], Loop});
 split_calls([{normal, NodeId}|Rest], {Normal, Loop}) ->
-	split_calls(Rest, {[NodeId|Normal], Loop});
-split_calls([{loop, NodeId}|Rest], {Normal, Loop}) ->
-	split_calls(Rest, {Normal, [NodeId|Loop]}).
+    split_calls(Rest, {Normal, [NodeId|Loop]});
+split_calls([{dead_end, _}|Rest], {Normal, Loop}) ->
+    split_calls(Rest, {Normal, Loop}).
+
 
 map_abstract(List) when is_list(List) ->
     case io_lib:printable_list(List) of

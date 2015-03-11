@@ -266,11 +266,17 @@ add_state_and_gen_call(Mod, EList) ->
   ([NodeNum | _] = List) = erl_syntax:list_elements(EList),
   erl_syntax:list([erl_syntax:variable("State") | List]
   ++ [
-    erl_syntax:macro(erl_syntax:variable("SIZED"),
-      [erl_syntax:variable("Size"),erl_syntax:application(erl_syntax:atom(atom_to_list(Mod) ++ "_dep"),
-        erl_syntax:atom(args_for),
-        [erl_syntax:variable("Size"),
-	 erl_syntax:atom(return),
+    erl_syntax:macro(
+      erl_syntax:variable("SIZED"),
+      [erl_syntax:variable("Size"),
+       erl_syntax:application(
+	 erl_syntax:atom(atom_to_list(Mod) ++ "_dep"),
+	 erl_syntax:atom(args_for),
+	 [erl_syntax:infix_expr(
+	    erl_syntax:variable("Size"),
+	    erl_syntax:operator("div"),
+	    erl_syntax:integer(10)),
+	  erl_syntax:atom(return),
           erl_syntax:variable("State"),
           NodeNum])])]).
 
