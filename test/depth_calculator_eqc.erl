@@ -58,14 +58,12 @@ gen_graph(Size) ->
 		  begin
 		      UniqueLinks = lists:usort(Links),
 		      EdgeIds = ["arc" ++ integer_to_list(Id) || Id <- lists:seq(1, length(UniqueLinks))],
-		      {shuffle([{NodeId, elements([min, sum])} || NodeId <- NodeIds]),
+		      {?LET(List, [{NodeId, elements([min, sum])} || NodeId <- NodeIds], shuffle(List)),
 		       shuffle([{A, C, B} || {{A, B}, C} <- lists:zip(UniqueLinks, EdgeIds)])}
 		  end)
     end.
 
-
 % Generic prop
-
 generic_prop(Fun) ->
     ?FORALL({Nodes, Edges},gen_graph(),
 	    ?TIMEOUT(1000,
