@@ -46,16 +46,12 @@
 
 get_dep_data(Drai) ->
     DepDrai = dia_utils:remove_orphan_nodes(
-     		remove_loops_and_control(Drai)),
+                     dia_utils:rebuild_idxs(remove_control(Drai))),
     TopNodes = dia_utils:get_top_nodes(DepDrai),
     ControlNodes = dia_utils:get_control_nodes(DepDrai),
 	{DepDrai, TopNodes, ControlNodes}.
 
-remove_loops_and_control(Drai) ->
-    dia_utils:rebuild_idxs(remove_loops(remove_control(Drai))).
-
-remove_loops(Drai) -> remove_arcs(fun remove_control_fun/3, Drai).
-remove_control(Drai) -> remove_arcs(fun remove_loops_fun/3, Drai).
+remove_control(Drai) -> remove_arcs(fun remove_control_fun/3, Drai).
 
 remove_arcs(Fun, #drai{darcs = Arcs} = Drai) ->
       Drai#drai{darcs = dict:fold(Fun, dict:new(), Arcs)}.
@@ -65,10 +61,6 @@ remove_control_fun(Key, Arc, Dict) ->
 	true -> dict:store(Key, Arc, Dict);
 	false -> Dict
     end.
-
-remove_loops_fun(Key, #diagram_arc{is_loop = false} = Arc, Dict) ->
-    dict:store(Key, Arc, Dict);
-remove_loops_fun(_, _, Dict) -> Dict.
 
 gen_used_dep(Drai, Path, ModuleName) ->
    	{DepDrai, _TopNodes, ControlNodes} = get_dep_data(Drai),
