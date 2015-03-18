@@ -88,7 +88,7 @@ filter_plus_from(Filter, Arc, Set) ->
 	end.
 
 is_data_dep(#diagram_arc{content = this, start_type = return}) -> true;
-is_data_dep(#diagram_arc{content = {param, _}}) -> true;
+is_data_dep(#diagram_arc{content = {param, _}, start_type = return}) -> true;
 is_data_dep(_) -> false.
 
 is_control_dep(#diagram_arc{content = http_order}) -> true;

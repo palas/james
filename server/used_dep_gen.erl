@@ -88,7 +88,7 @@ gen_used_dep_aux(Code, #diagram_node{properties = [diamond|_]} = Rec,
     {{PrimL, [{oneOf, Code, Rec, dia_utils:parents_codes(Code, Drai, diamond)}|OneOfsL], CallsL}, Drai};
 gen_used_dep_aux(Code, #diagram_node{properties = [rectangle|_], content = #callback{params = CPList, this = CThis}} = Rec,
 		 {{PrimL, OneOfsL, CallsL}, Drai}) ->
-    {{PrimL, OneOfsL, [{acall, Code, Rec, dia_utils:parents_codes(Code, Drai, normal), {CPList, CThis}}|CallsL]}, Drai}.
+    {{PrimL, OneOfsL, [{acall, Code, Rec, dia_utils:parents_codes(Code, Drai, normal), {CThis, CPList}}|CallsL]}, Drai}.
 pack_node_info(Code, Rec, List) -> [{control, Code, Rec, none}|List].
 
 
@@ -197,7 +197,7 @@ check_sig({_Params, _This}, {_EParams, _EThis}) ->
 call_funcs(ModuleName, _ThisModuleName, Calls) ->
 	[begin
 	     IsThis = lists:member(this, Node#diagram_node.tags),
-	     SigOk = check_sig({This, Params}, {EParams, EThis}),
+	     SigOk = check_sig({This, Params}, {EThis, EParams}),
 	     erl_syntax:clause(
 	       [erl_syntax:variable(utils:underscore_if_true("Size", (IsThis orelse (not SigOk)) orelse (is_atom(This) andalso (Params =:= [])))),
 		erl_syntax:variable(utils:underscore_if_true("State", IsThis orelse (not SigOk))),
