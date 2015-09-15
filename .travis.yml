@@ -4,3 +4,4 @@ jdk:
   - oraclejdk7
 install: "travis/prepare.sh"
 script: "travis/test.sh"
+sudo: required
