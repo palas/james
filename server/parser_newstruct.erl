@@ -43,7 +43,8 @@
 
 -export([get_drai/2, get_drai/3, gen_dia_to_files/3, gen_dia_to_files/4, list_traces/1,
 	 save_filtered_messages/2, save_filtered_messages/3, drai_to_file/2,
-	 gen_eqc/4, gen_eqc/5, gen_dia_to_files_dbg/3, gen_dia_to_files_dbg/4]).
+	 gen_eqc/4, gen_eqc/5, gen_eqc_with_dia/4, gen_eqc_with_dia/5,
+	 gen_dia_to_files_dbg/3, gen_dia_to_files_dbg/4]).
 
 gen_eqc(Pid, N, Path, Module) ->
     Drai = get_drai(Pid, N),
@@ -52,6 +53,21 @@ gen_eqc(Pid, N, Path, Module) ->
 gen_eqc(Pid, N, Path, Module, PreConfig) ->
     Drai = get_drai(Pid, N, PreConfig),
     gen_eqc_aux(Path, Module, Drai).
+
+gen_eqc_with_dia(Pid, N, Path, Module) ->
+    Drai = get_drai(Pid, N),
+    gen_eqc_aux(Path, Module, Drai),
+    gen_eqc_aux_html(Path, Module, Drai),
+    drai_to_ann_file(Path ++ "ann_dia.dot", Drai, {true, Path, Module}).
+
+gen_eqc_with_dia(Pid, N, Path, Module, PreConfig) ->
+    Drai = get_drai(Pid, N, PreConfig),
+    gen_eqc_aux(Path, Module, Drai),
+    gen_eqc_aux_html(Path, Module, Drai),
+    drai_to_ann_file(Path ++ "ann_dia.dot", Drai, {true, Path, Module}).
+
+gen_eqc_aux_html(Path, Module, Drai) ->
+    template_gen:fun_templates_ann(Drai, Path, Module).
 
 gen_eqc_aux(Path, Module, Drai) ->
     template_gen:fun_templates(Drai, Path, Module),
@@ -75,11 +91,14 @@ get_drai(Pid, N, PreConfig) ->
     [{Nodes, Arcs}] = combinator:combinate(ONodes, OArcs, Config),
     dia_utils:create_drai(Nodes, Arcs).
 
-drai_to_file(File, Drai) ->
+drai_to_file(File, Drai) -> 
+    drai_to_ann_file(File, Drai, false).
+
+drai_to_ann_file(File, Drai, URL) ->
     {Nodes, Arcs} = islands:fusion_islands([Drai]),
     file:write_file(File, list_to_binary(
 			    lists:flatten(
-			      diagram_tool:write_diagram(Nodes, Arcs)))).
+			      diagram_tool:write_diagram(Nodes, Arcs, URL)))).
 
 save_filtered_messages(Pid,File) ->
     save_filtered_messages(Pid,File,#config{}).

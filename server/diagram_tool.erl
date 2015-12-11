@@ -39,29 +39,31 @@
 %%%-------------------------------------------------------------------
 -module(diagram_tool).
 
--export([write_diagram/2]).
+-export([write_diagram/2, write_diagram/3]).
 
 -include("records.hrl").
 
-write_diagram(Nodes, Arcs) ->
+write_diagram(Nodes,Arcs) -> write_diagram(Nodes, Arcs, false).
+
+write_diagram(Nodes,Arcs,URL) ->
     ["digraph Example { \n",
      "ordering = \"out\" ;\n",
      "ranksep = 2;\n",
      "ratio = \"auto\" ;\n",
      "label = \"Java Interactions\" ;\n",
-     write_clustered_nodes(Nodes),
+     write_clustered_nodes(Nodes,URL),
      write_arcs(arc_sorter:sort_arcs(Arcs)),
      "}\n\n"].
 
-write_clustered_nodes(Nodes) ->
+write_clustered_nodes(Nodes,URL) ->
     Clusters = utils:group_by(fun compare_clusters/1, Nodes),
-    lists:map(fun write_node_cluster/1, Clusters).
+    lists:map(fun (X) -> write_node_cluster(X, URL) end, Clusters).
 
-write_node_cluster([DiaNode|_] = List) ->
+write_node_cluster([DiaNode|_] = List,URL) ->
     case get_cluster(DiaNode) of
-	none -> write_nodes(List);
+	none -> write_nodes(List,URL);
 	{cluster, Name, Title} -> [cluster_open(Name, Title),
-				   write_nodes(List),
+				   write_nodes(List,URL),
 				   cluster_close()]
     end.
 
@@ -79,17 +81,23 @@ compare_clusters(A) -> case get_cluster(A) of
 get_cluster(#diagram_node{cluster = {cluster, Id, Title}}) -> {cluster, Id, Title};
 get_cluster(_) -> none.
 
-write_nodes([]) -> "";
+write_nodes([],_URL) -> "";
 write_nodes([#diagram_node{id = Id, label = Label, properties = OldOpts,
 			   is_label_term = IsLabelTerm,
-			   tags = Tags, class = Class}|Rest]) ->
+			   tags = Tags, class = Class}|Rest],URL)
+
+                                                              ->
     EscLabel = case IsLabelTerm of
 		   true -> parser_utils:print_escaped(Label);
 		   false -> parser_utils:escape(Label)
 	       end,
     Opts = remove_duplicated_colors(add_class_to_opts(add_tags_to_opts(OldOpts, Tags), Class)),
     [[Id, " [label = \"", EscLabel, "\"",
-     comma_if_non_empty(Opts), write_opts(Opts), "] ;\n"], write_nodes(Rest)].
+      case URL of
+	  {true, _Path, Module} -> ["URL = \"", atom_to_list(Module), ".html#callback-", Id, "\""];
+	  false -> []
+      end,
+      comma_if_non_empty(Opts), write_opts(Opts), "] ;\n"], write_nodes(Rest,URL)].
 write_arcs([]) -> "";
 write_arcs([#diagram_arc{id_start = From,
 			 id_end = To,
