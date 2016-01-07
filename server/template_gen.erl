@@ -67,7 +67,9 @@ fun_templates_aux(Drai, Path, ModuleName, Annotate) ->
 
 fix_annotations(IOList, false, _) -> IOList;
 fix_annotations(IOList, true, Hash) ->
-    ["<html><head><title>Template code</title></head><body><code>",
+    ["<html><head><title>Template code</title><style type=\"text/css\">"
+     ":target { background-color: #aff; }"
+     "</style></head><body><code>",
      re:replace(escape_html(lists:flatten(IOList)), Hash ++ "\([0-9]*\).", "<a name=\"callback-\\1\" />", [global]),
      "</code></body></html>"].
 
