@@ -93,9 +93,9 @@ write_nodes([#diagram_node{id = Id, label = Label, properties = OldOpts,
 	       end,
     Opts = remove_duplicated_colors(add_class_to_opts(add_tags_to_opts(OldOpts, Tags), Class)),
     [[Id, " [label = \"", EscLabel, "\"",
-      case URL of
-	  {true, _Path, Module} -> ["URL = \"", atom_to_list(Module), ".html#callback-", Id, "\""];
-	  false -> []
+      case {URL, lists:member(diamond, OldOpts)} of
+	  {{true, _Path, Module}, false} -> ["URL = \"", atom_to_list(Module), ".html#callback-", Id, "\""];
+	  {_, _} -> []
       end,
       comma_if_non_empty(Opts), write_opts(Opts), "] ;\n"], write_nodes(Rest,URL)].
 write_arcs([]) -> "";
