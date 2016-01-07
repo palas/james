@@ -57,55 +57,14 @@ fun_templates_aux(Drai, Path, ModuleName, Annotate) ->
 		{Id, #diagram_node{
 			content = #callback{} = Callback
 		       }} <- List],
-    Hash = gen_hash(),
+    Hash = html_utils:gen_hash(),
     file:write_file(Path ++ atom_to_list(ModuleName) ++ case Annotate of
 							    false -> ".erl";
 							    true -> ".html"
 							end,
-		    fix_annotations([[erl_prettypr:format(AST, add_hook(Annotate, Hash)), "\n"]
-				     || AST <- gen_ast(Consts, Calls, ModuleName)], Annotate, Hash)).
-
-fix_annotations(IOList, false, _) -> IOList;
-fix_annotations(IOList, true, Hash) ->
-    ["<html><head><title>Template code</title><style type=\"text/css\">"
-     ":target { background-color: #aff; }"
-     "</style></head><body><code>",
-     re:replace(escape_html(lists:flatten(IOList)), Hash ++ "\([0-9]*\).", "<a name=\"callback-\\1\" />", [global]),
-     "</code></body></html>"].
-
-escape_html([]) -> [];
-escape_html([$&|Rest]) -> [$&, $a, $m, $p, $;|escape_html(Rest)];
-escape_html([$<|Rest]) -> [$&, $l, $t, $;|escape_html(Rest)];
-escape_html([$>|Rest]) -> [$&, $g, $t, $;|escape_html(Rest)];
-escape_html([$"|Rest]) -> [$&, $q, $u, $o, $t, $;|escape_html(Rest)];
-escape_html([$'|Rest]) -> [$&, $#, $x, $2, $7, $;|escape_html(Rest)];
-escape_html([$/|Rest]) -> [$&, $#, $x, $2, $F, $;|escape_html(Rest)];
-escape_html([$\t|Rest]) -> [$ , $ , $ , $ , $ , $ , $ , $  |escape_html(Rest)];
-escape_html([$ |Rest]) -> [$&, $n, $b, $s, $p, $;|escape_html(Rest)];
-escape_html([$\n|Rest]) -> [$<, $b, $r, $ , $/, $>, $\n|escape_html(Rest)];
-escape_html([Else|Rest]) -> [Else|escape_html(Rest)].
-
-gen_hash() -> get_random_string(60, "0123456789abcdef").
-
-get_random_string(Length, AllowedChars) ->
-    lists:foldl(fun(_, Acc) ->
-                        [lists:nth(random:uniform(length(AllowedChars)),
-                                   AllowedChars)]
-                            ++ Acc
-                end, [], lists:seq(1, Length)).
-
-add_hook(Annotate, Hash) ->
-    case Annotate of
-	true -> [{hook, fun (X, Y, Z) -> create_anchor(X, Y, Z, Hash) end}];
-	false -> []
-    end.
-
-create_anchor(X, Y, Z, Hash) ->
-    Inner = Z(X, Y),
-    case [Id2 || {create_anchor, Id2} <- erl_syntax:get_ann(X)] of
-	[Id|_] -> prettypr:beside(prettypr:null_text(Hash ++ Id ++ "."), Inner);
-	[] -> Z(X, Y)
-    end.
+		    html_utils:fix_annotations([[erl_prettypr:format(AST, html_utils:add_hook(Annotate, Hash)), "\n"]
+				                || AST <- gen_ast(Consts, Calls, ModuleName)], Annotate, Hash,
+				               "Template Code", "callback-")).
 
     %% [{Id, MethodName, Class, length(Parameters), Parameters} || {Id, #diagram_node{content = #callback{method_name = MethodName, class_signature = Class, params = Parameters}}} <- dict:to_list(Drai#drai.dnodes)].
 

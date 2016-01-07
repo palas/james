@@ -67,7 +67,8 @@ gen_eqc_with_dia(Pid, N, Path, Module, PreConfig) ->
     drai_to_ann_file(Path ++ "ann_dia.dot", Drai, {true, Path, Module}).
 
 gen_eqc_aux_html(Path, Module, Drai) ->
-    template_gen:fun_templates_ann(Drai, Path, Module).
+    template_gen:fun_templates_ann(Drai, Path, Module),
+    dep_fsm_gen:gen_dep_ann(Drai, Path, Module).
 
 gen_eqc_aux(Path, Module, Drai) ->
     template_gen:fun_templates(Drai, Path, Module),

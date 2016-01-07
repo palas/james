@@ -234,12 +234,14 @@ compare_arcs(A) -> get_tran_prop(A).
 
 add_diamond_if_several([A]) -> [A];
 add_diamond_if_several(Several) ->
+    Content = (hd(Several))#diagram_arc.content,
     DiaId = "diamond" ++ get_arc_to(hd(Several)) ++ "o"
 	++ get_arc_id(hd(Several)),
-    [#diagram_node{id = DiaId, label = "oneOf", properties = [diamond]},
+    [#diagram_node{id = DiaId, label = "oneOf", properties = [diamond],
+		   content = Content},
      #diagram_arc{id = "trans" ++ DiaId, id_start = DiaId,
 		  id_end = get_arc_to(hd(Several)),
-		  content = (hd(Several))#diagram_arc.content,
+		  content = Content,
 		  properties = (hd(Several))#diagram_arc.properties}
      |lists:map(fun (X) -> change_dest_to(DiaId, X) end, Several)].
 

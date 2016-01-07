@@ -52,7 +52,7 @@ write_diagram(Nodes,Arcs,URL) ->
      "ratio = \"auto\" ;\n",
      "label = \"Java Interactions\" ;\n",
      write_clustered_nodes(Nodes,URL),
-     write_arcs(arc_sorter:sort_arcs(Arcs)),
+     write_arcs(arc_sorter:sort_arcs(Arcs),URL),
      "}\n\n"].
 
 write_clustered_nodes(Nodes,URL) ->
@@ -92,19 +92,30 @@ write_nodes([#diagram_node{id = Id, label = Label, properties = OldOpts,
 		   false -> parser_utils:escape(Label)
 	       end,
     Opts = remove_duplicated_colors(add_class_to_opts(add_tags_to_opts(OldOpts, Tags), Class)),
+    URLOption = case {URL, lists:member(diamond, OldOpts)} of
+		    {{true, _Path, Module}, false} -> ["URL = \"", atom_to_list(Module), ".html#callback-", Id, "\""];
+		    {_, _} -> []
+		end,
     [[Id, " [label = \"", EscLabel, "\"",
-      case {URL, lists:member(diamond, OldOpts)} of
-	  {{true, _Path, Module}, false} -> ["URL = \"", atom_to_list(Module), ".html#callback-", Id, "\""];
-	  {_, _} -> []
-      end,
+      comma_if_non_empty(URLOption), URLOption,
       comma_if_non_empty(Opts), write_opts(Opts), "] ;\n"], write_nodes(Rest,URL)].
-write_arcs([]) -> "";
+write_arcs([], _URL) -> "";
 write_arcs([#diagram_arc{id_start = From,
 			 id_end = To,
-			 properties = Opts}|Rest]) ->
-     [[From, " -> ", To, " [", write_opts(
-				 remove_duplicated_colors([{color, 128, 128, 128},arrow_head|Opts])),
-      "] ;\n"], write_arcs(Rest)].
+			 content = Content,
+			 properties = Opts}|Rest],URL)
+
+
+                                                       ->
+    URL_Option = case {URL, Content} of
+		     {{true, _PATH, Module}, this} -> ["URL = \"", atom_to_list(Module), "_dep.html#this-", From, "-", To, "\""];
+		     {{true, _PATH, Module}, {param, N}} -> ["URL = \"", atom_to_list(Module), "_dep.html#param", integer_to_list(N), "-", From, "-", To, "\""];
+		     {_, _} -> []
+		 end,
+    [[From, " -> ", To, " [", write_opts(
+				remove_duplicated_colors([{color, 128, 128, 128},arrow_head|Opts])),
+	  comma_if_non_empty(URL_Option), URL_Option,
+      "] ;\n"], write_arcs(Rest, URL)].
 
 remove_duplicated_colors(List) ->
     remove_duplicated_colors(none, List).
