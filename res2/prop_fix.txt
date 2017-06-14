@@ -1,0 +1,31 @@
+
+prop_iface() ->
+    ?FORALL(Cmds, (commands(?MODULE)),
+	    ?ONCEONLY(begin
+			  TestNum = case get(iface) of
+					undefined -> 1;
+					Else -> Else
+				    end,
+			  put(iface, TestNum + 1),
+%			  ok = client:syn(),
+			  io:format("@Test~npublic void testGenerated~p() throws Exception {~n", [TestNum]),
+			  {_History, S, Res} = run_commands(?MODULE, Cmds),
+%			  client:close(),
+			  cleanup(S),
+			  io:format("}~n"),
+			  Res == ok
+		      end)).
+
+
+has_method(Method, Tuple) when is_tuple(Tuple) ->
+    has_method(Method, tuple_to_list(Tuple));
+has_method(Method, [Head|Tail]) ->
+    has_method(Method, Head) orelse has_method(Method, Tail);
+has_method(Method, #{method_name := Method}) -> true;
+has_method(_, _) -> false.
+
+filtered_commands(Module) ->
+    ?SUCHTHAT(
+       Cmds,
+       commands(Module),
+       has_method("updateDevice", Cmds)).
