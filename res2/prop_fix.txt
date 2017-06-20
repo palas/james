@@ -7,10 +7,15 @@ prop_iface() ->
 					Else -> Else
 				    end,
 			  put(iface, TestNum + 1),
-%			  ok = client:syn(),
+			  ok = client:syn(),
+			  {result, ok_method_call, {var, var, 1}} = 
+			      client:command(
+				client:method_call("com.interoud.freqserver.test.FreqServerTest", "getMe",
+						   client:null_var(),
+						   [], [])),
 			  io:format("@Test~npublic void testGenerated~p() throws Exception {~n", [TestNum]),
 			  {_History, S, Res} = run_commands(?MODULE, Cmds),
-%			  client:close(),
+			  client:close(),
 			  cleanup(S),
 			  io:format("}~n"),
 			  Res == ok

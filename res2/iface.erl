@@ -75,7 +75,6 @@ evaluate_checks(Param, {RawState, N}) ->
     [_Result, NewRawSubState|_Inter] = lists:reverse(eqc_symbolic:eval(utils:serialise_trace_with_state(RawState, Param))),
     {NewRawSubState, N + 1}.
 
-
 actual_callback(State, Code, WhatToReturn, Info, []) ->
     {NewState, Result} = actual_callback(State, Code, Info, []),
     case WhatToReturn of
@@ -88,6 +87,7 @@ actual_callback(State, Code, WhatToReturn, Info,  {This, Params}) ->
 	this -> {NewState, This};
 	{param, N} -> {NewState, lists:nth(N, Params)}
     end.
+
 actual_callback(State, Code, #{obj_info := #{},
 			       type := Type,
 			       value := Value}, []) ->
@@ -97,64 +97,76 @@ actual_callback(State, Code, #{obj_info := #{},
 		 _ -> {jvar, Num}
 	     end,
     Result2 = case Type of
-		  null -> store_var(null_var())
-		  _ -> client:command(
-			 case Type of
-			     int -> client:method_call(
-				      "Java.Lang.Integer",
-				      "parseInt",
-				      null_var(),
-				      [Value],
-				      ["java.Lang.String"]
-				     );
-			     float -> client:method_call(
-					"Java.Lang.Float",
-					"parseFloat",
-					null_var(),
-					[Value],
-					["java.Lang.String"]
-				       );
-			     double -> client:method_call(
-					 "Java.Lang.Double",
-					 "parseInt",
-					 null_var(),
-					 [Value],
-					 ["java.Lang.String"]
-					);
-			     boolean -> client:method_call(
-					  "Java.Lang.Boolean",
-					  "parseBoolean",
-					  null_var(),
-					  [Value],
-					  ["java.Lang.String"]
-					 );
-			     short -> client:method_call(
-					"Java.Lang.Short",
-					"parseShort",
-					null_var(),
-					[Value],
-					["java.Lang.String"]
-				       );
-			     long -> client:method_call(
-				       "Java.Lang.Long",
-				       "parseLong",
-				       null_var(),
-				       [Value],
-				       ["java.Lang.String"]
-				      )
-			 end)
-	      end,
+    		  null -> client:store_var(client:null_var());
+    		  _ -> client:command(
+    			 case Type of
+    			     integer -> client:method_call(
+    				      "java.lang.Integer",
+    				      "parseInt",
+    				      client:null_var(),
+    				      [client:string_const(lists:flatten(io_lib:format("~p", [Value])))],
+    				      [client:type_class("java.lang.String")]
+    				     );
+    			     float -> client:method_call(
+    					"java.lang.Float",
+    					"parseFloat",
+    					client:null_var(),
+    					[client:string_const(lists:flatten(io_lib:format("~p", [Value])))],
+    					[client:type_class("java.lang.String")]
+    				       );
+    			     double -> client:method_call(
+    					 "java.lang.Double",
+    					 "parseInt",
+    					 client:null_var(),
+    					 [client:string_const(lists:flatten(io_lib:format("~p", [Value])))],
+    					 [client:type_class("java.lang.String")]
+    					);
+    			     boolean -> client:method_call(
+    					  "java.lang.Boolean",
+    					  "parseBoolean",
+    					  client:null_var(),
+    					  [client:string_const(lists:flatten(io_lib:format("~p", [Value])))],
+    					  [client:type_class("java.lang.String")]
+    					 );
+    			     short -> client:method_call(
+    					"java.lang.Short",
+    					"parseShort",
+    					client:null_var(),
+    					[client:string_const(lists:flatten(io_lib:format("~p", [Value])))],
+    					[client:type_class("java.lang.String")]
+    				       );
+    			     long -> client:method_call(
+    				       "java.lang.Long",
+    				       "parseLong",
+    				       client:null_var(),
+    				       [client:string_const(lists:flatten(io_lib:format("~p", [Value])))],
+    				       [client:type_class("java.lang.String")]
+    				      )
+    			 end)
+    	      end,
     case Result2 of
-	{result, ok_method_call, _} -> ok;
-	{result, ok_value_store, _} -> ok;
-	_ -> io:format("%% ERROR: ")
+    	{result, ok_method_call, {var, var, N}} -> Num = N - 1;
+    	{result, ok_value_store, {var, var, N}} -> Num = N - 1;
+    	_ -> io:format("// ERROR: "),
+    	     client:command(client:store_var(client:null_var()))
     end,
-    io:format("~s ~s = ~p;~n", [type_to_java(Type), name_for({Result, no_cast}), Value]);
+    io:format("~s ~s = ~p;~n", [type_to_java(Type), name_for({Result, no_cast}), Value]),
     {utils:add_all_params_to_state_raw(Code, State, [Result]), Result};
 actual_callback(State, Code, #{class_signature := ClassSignature,
 			       method_name := "<init>",
 			       method_signature := Signature}, {static, ParamList}) ->
-    Result = {jvar, utils:get_num_var_raw(State)},
+    Num = utils:get_num_var_raw(State),
+    Result = {jvar, Num},
+    {P, PT} = mk_param_list2(ParamList, Signature),
+    Result2 = client:command(
+    		client:new_call(class_to_normal_notation(ClassSignature),
+    			        P, PT)),
+    case Result2 of
+    	{result, ok_method_call, {var, var, N}} -> Num = N - 1;
+    	{result, ok_value_store, {var, var, N}} -> Num = N - 1;
+    	_ -> io:format("// ERROR: "),
+    	     client:command(client:store_var(client:null_var()))
+    end,
     io:format("~s ~s = new ~s(~s);~n", [class_to_normal_notation(ClassSignature),
 					 name_for({Result, no_cast}),
 					 class_to_normal_notation(ClassSignature),
@@ -163,8 +175,20 @@ actual_callback(State, Code, #{class_signature := ClassSignature,
 actual_callback(State, Code, #{class_signature := ClassSignature,
 			       method_name := Name,
 			       method_signature := Signature}, {static, ParamList}) ->
-    Result = {jvar, utils:get_num_var_raw(State)},
+    Num = utils:get_num_var_raw(State),
+    Result = {jvar, Num},
     Ret = return_from_sig(Signature),
+    {P, PT} = mk_param_list2(ParamList, Signature),
+    Result2 = client:command(
+    		client:method_call(class_to_normal_notation(ClassSignature),
+    				   Name, client:null_var(),
+    				   P, PT)),
+    case Result2 of
+    	{result, ok_method_call, {var, var, N}} -> Num = N - 1;
+    	{result, ok_value_store, {var, var, N}} -> Num = N - 1;
+    	_ -> io:format("// ERROR: "),
+    	     client:command(client:store_var(client:null_var()))
+    end,
     case Ret of
 	"void" -> io:format("~s.~s(~s);~n",
 			    [class_to_normal_notation(ClassSignature),
@@ -178,8 +202,20 @@ actual_callback(State, Code, #{class_signature := ClassSignature,
     {utils:add_all_params_to_state_raw(Code, State, [Result, static | ParamList]), Result};
 actual_callback(State, Code, #{method_name := Name,
 			       method_signature := Signature}, {This, ParamList}) ->
-    Result = {jvar, utils:get_num_var_raw(State)},
+    Num = utils:get_num_var_raw(State),
+    Result = {jvar, Num},
     Ret = return_from_sig(Signature),
+    {P, PT} = mk_param_list2(ParamList, Signature),
+    Result2 = client:command(
+    		client:method_call("",
+    				   Name, name_for2({This, none}),
+    				   P, PT)),
+    case Result2 of
+    	{result, ok_method_call, {var, var, N}} -> Num = N - 1;
+    	{result, ok_value_store, {var, var, N}} -> Num = N - 1;
+    	_ -> io:format("// ERROR: "),
+    	     client:command(client:store_var(client:null_var()))
+    end,
     case Ret of
 	"void" -> io:format("~s.~s(~s);~n", [name_for({This, no_cast}), Name,
 					     mk_param_list(ParamList,Signature)]);
@@ -200,6 +236,21 @@ mk_param_list(ParamList,Signature) ->
       lists:map(fun name_for/1,
 		lists:zip(ParamList,
 			  get_param_types(Signature)))).
+
+fix_types("byte") -> client:type_byte();
+fix_types("char") -> client:type_char();
+fix_types("double") -> client:type_double();
+fix_types("float") -> client:type_float();
+fix_types("int") -> client:type_int();
+fix_types("long") -> client:type_long();
+fix_types("short") -> client:type_short();
+fix_types("boolean") -> client:type_boolean();
+fix_types(Class) -> client:type_class(Class).
+
+mk_param_list2(ParamList,Signature) ->
+    T = get_param_types(Signature),
+    {lists:map(fun name_for2/1, lists:zip(ParamList, T)),
+     lists:map(fun fix_types/1, T)}.
 
 get_param_types([$(|List]) -> get_param_types(List);
 get_param_types([$)|_]) -> [];
@@ -241,6 +292,10 @@ name_for({{jvar, Num, is_null}, Cast}) when Cast =/= no_cast ->
     "(" ++ Cast ++ ") var" ++ integer_to_list(Num);
 name_for({{jvar, Num}, _}) -> "var" ++ integer_to_list(Num);
 name_for({{jvar, Num, is_null}, _}) -> "var" ++ integer_to_list(Num).
+
+name_for2({this, _}) -> {var, var, 1};
+name_for2({{jvar, Num}, _}) -> {var, var, Num + 1};
+name_for2({{jvar, _Num, is_null}, _}) -> client:null_var().
 
 class_to_normal_notation([]) -> [];
 class_to_normal_notation([$B]) -> "byte";
