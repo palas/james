@@ -1,0 +1,14 @@
+    public static FreqServerTest me;
+    public static FreqServerTest getMe() {
+      return me;
+    }
+
+    @Test
+    public void testInteractive() throws IOException  {
+    	FreqServerTest.me = this;
+    	while (true) {
+    		this.setUp();
+    		System.out.println(ErlangBridge.getInstance().run());
+    		this.tearDown();
+    	}
+    }

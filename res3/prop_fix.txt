@@ -1,0 +1,49 @@
+
+once_only(Cmds, Prop) ->
+    Tests = get(tests_done),
+    case sets:is_element(Cmds, Tests) of
+	true -> io:format("o"), true;
+	false -> put(tests_done, sets:add_element(Cmds, Tests)), Prop()
+    end.
+
+prop_iface() ->
+    ?SETUP(
+       fun () -> put(tests_done, sets:new()),
+		 (fun () -> erase(tests_done) end) end,
+       ?FORALL(Cmds, (commands(?MODULE)),
+	       once_only(Cmds,
+			 fun () ->
+				 begin
+				     TestNum = case get(iface) of
+						   undefined -> 1;
+						   Else -> Else
+					       end,
+				     put(iface, TestNum + 1),
+				     ok = client:syn(),
+				     {result, ok_method_call, {var, var, 1}} = 
+					 client:command(
+					   client:method_call("com.interoud.freqserver.test.FreqServerTest", "getMe",
+							      client:null_var(),
+							      [], [])),
+				     io:format("@Test~npublic void testGenerated~p() throws Exception {~n", [TestNum]),
+				     {_History, S, Res} = run_commands(?MODULE, Cmds),
+				     client:close(),
+				     cleanup(S),
+				     io:format("}~n"),
+				     Res == ok
+				 end
+			 end))).
+
+
+has_method(Method, Tuple) when is_tuple(Tuple) ->
+    has_method(Method, tuple_to_list(Tuple));
+has_method(Method, [Head|Tail]) ->
+    has_method(Method, Head) orelse has_method(Method, Tail);
+has_method(Method, #{method_name := Method}) -> true;
+has_method(_, _) -> false.
+
+filtered_commands(Module) ->
+    ?SUCHTHAT(
+       Cmds,
+       commands(Module),
+       has_method("updateDevice", Cmds)).
