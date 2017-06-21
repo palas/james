@@ -148,6 +148,7 @@ actual_callback(State, Code, #{obj_info := #{},
     	{result, ok_method_call, {var, var, N}} -> Num = N - 1;
     	{result, ok_value_store, {var, var, N}} -> Num = N - 1;
     	_ -> io:format("// ERROR: "),
+	     io:format("~s ~s = null; // we write NULL instead~n", [type_to_java(Type), name_for({Result, no_cast})]),
     	     client:command(client:store_var(client:null_var()))
     end,
     io:format("~s ~s = ~p;~n", [type_to_java(Type), name_for({Result, no_cast}), Value]),
