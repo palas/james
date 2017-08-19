@@ -35,6 +35,7 @@
 #define __PACKAGE_HPP__
 
 #include <boost/asio.hpp>
+#include <boost/array.hpp>
 #include <string>
 #include <sstream>
 #include <cstdlib>
