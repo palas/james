@@ -51,7 +51,7 @@
 		 collapse_integers = true, collapse_strings = true,
 		 single_file = false, print_node_numbers = false,
 		 num_of_islands = 20, % inf = no limit
-		 big_k_value = 4, small_k_value = 1, remove_orphan_nodes = true,
+		 upper_k_value = 4, lower_k_value = 1, remove_orphan_nodes = true,
 		 discard_calls_beginning_with = ["info"], % assert is another useful option
 		 remove_nodes_up_from = ["createTest", "getLogger", "run"],
                  this_generator = "run", track_usage = false,

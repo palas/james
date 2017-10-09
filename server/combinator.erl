@@ -99,8 +99,8 @@ combinate_aux3(Island, Config, Iteration, MaxIterations, {Path1, Path2}) ->
                    Iteration + 1,MaxIterations).
 
 get_best_path_pair_and_do(Island, Config, F) ->
-    case get_best_path_pair(Config#config.big_k_value, Island, false) of
-	none -> case get_best_path_pair(Config#config.small_k_value, Island, true) of
+    case get_best_path_pair(Config#config.upper_k_value, Island, false) of
+	none -> case get_best_path_pair(Config#config.lower_k_value, Island, true) of
 		    none -> F(none);
 		    {Path1, Path2} -> F({Path1, Path2})
 		end;
